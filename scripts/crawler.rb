@@ -28,7 +28,7 @@ require File.join(File.dirname(__FILE__), '../lib/threadpool.rb')
 # in the database
 # the recommended frequency for this job is once a day
 #
-# a possible future optimization would be multi-threading
+# this job is multi-threaded with 5 threads for now
 
 def index
   # we prepare the threadpool
