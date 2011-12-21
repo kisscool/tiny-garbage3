@@ -8,7 +8,6 @@ vendor
 .sass-cache
 ## Project
 log/*
-db.sqlite3
 config.rb
 # unicorn
 unicorn.conf.rb
