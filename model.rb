@@ -20,10 +20,10 @@ require 'shellwords'
 ################### LOAD OF CONFIGURATION
 
 # defaults values
-PORT         = 21
-IGNORED_DIRS = ". .. .svn"
-LOGIN        = "anonymous"
-PASSWORD     = "garbage3"
+PORT             = 21
+IGNORED_DIRS     = ". .. .svn"
+LOGIN            = "anonymous"
+PASSWORD         = "garbage3"
 DEFAULT_FTP_NAME = "anonymous ftp"
 WORDS_SEPARATORS = [ /\s/ , /,/ , /\(|\)/ , /;/ , /\./ , /_/ , /\'/ , /[[:punct:]]/ , /:/ , /!/ , /\?/ , /-/ , /\[|\]/ , /\|/ , /\\/ , /`/ , /\{|\}/ , /~/ , /"/ ]     # those are the separators for the inverted index
 
@@ -32,7 +32,7 @@ WORDS_SEPARATORS = [ /\s/ , /,/ , /\(|\)/ , /;/ , /\./ , /_/ , /\'/ , /[[:punct:
 require File.join(File.dirname(__FILE__), './config.rb')
 
 ###############################################################################
-################### DATABASE DESIGN
+################### INTERNAL DOCUMENTATION
 
 # == Database Design
 #
@@ -43,56 +43,58 @@ require File.join(File.dirname(__FILE__), './config.rb')
 # - entry  : handle scanned entries, each entry is a file or a directory on a given host
 # - ftp    : handle informations for each host we are scanning
 # - word   : handle the reversed index we will use for searching
+# - tmp    : handle the cache for research
 #
 # === Global
 #
 # Contains the following keys :
-# - hosts : a set of the FTP server, identified by their IP address
+# - hosts : a set of all the registered FTP server, identified by their IP address
 #
 # ex : global:hosts => { "192.168.0.5", "192.168.0.4" }
 #
 # === Entry
 #
-# Contains individual keys for each entry, in the form IP:PATH.
+# Contains individual keys for each entry (a file or a directory), in the form IP:PATH.
 # Each entry contains a hash with the following items :
 # - directory      : check if the entry is a directory or not
-# - entry_datetime : date of the entry has reported by the FTP server
-# - size           : size of the entry has reported by the FTP server
+# - entry_datetime : date of the entry, as reported by the FTP server
+# - size           : size of the entry, as reported by the FTP server
 # - name           : basename of the entry, this redundancy is used to speed-up sort operations
 #
 # ex : 
 # entry:192.168.0.5:/animes/plip/plop => {
-#   directory      => true,
+#   directory      => "true",
 #   name           => "plop",
-#   entry_datetime => "2010-10-16 20:27:00",
-#   size           => 43
+#   entry_datetime => "1324400850",
+#   size           => "43"
 # }
 #
 # === FTP
 #
-# Contains individual keys for each entry, identified by their IP address.
-# Each key has the following subkeys :
-# - IP:good_timestamp    : timestamp of the last known good version of the FTP index
-# - IP:list_timestamp    : set of timestamped index registered in the database
-# - IP:entries:timestamp : set of the FTP index at the given timestamp
-# - IP:name              : name of the given FTP server
-# - IP:is_alive          : was the given FTP server alive during the last check
-# - IP:last_ping         : time of the last check
-# - IP:total_size	 : Cached value of the total size of the FTP server
-# - IP:total_files       : Cached value of the total number of files in the FTP server
+# Contains a sub-level of keys for each FTP server, identified by their IP address.
+# Each sub-level has the following subkeys :
+# - $IP:good_timestamp     : timestamp of the last known good version of the FTP index
+# - $IP:list_timestamp     : set of timestamped index registered in the database
+# - $IP:entries:$timestamp : set of the FTP index at the given timestamp
+# - $IP:name               : name of the given FTP server
+# - $IP:is_alive           : was the given FTP server alive during the last check?
+# - $IP:last_ping          : time of the last check
+# - $IP:total_size	   : Cached value of the total size of the FTP server
+# - $IP:total_files        : Cached value of the total number of files in the FTP server
 #
 # ex :
 # ftp:192.168.0.5:good_timestamp  => "1324400857"
+# ftp:192.168.0.5:list_timestamp  => { "1324400857" }
 # ftp:192.168.0.5:1324400857      => { "/animes/plip/plop", "/animes/plip/plap", ... }
 # ftp:192.168.0.5:name            => "plop ftp"
-# ftp:192.168.0.5:is_alive        => true
-# ftp:192.168.0.5:last_ping       => "2010-10-20 23:27:00"
-# ftp:192.168.0.5:total_size      => 2477566119194
-# ftp:192.168.0.5:total_files     => 155086
+# ftp:192.168.0.5:is_alive        => "true"
+# ftp:192.168.0.5:last_ping       => "1324400855"
+# ftp:192.168.0.5:total_size      => "2477566119194"
+# ftp:192.168.0.5:total_files     => "155086"
 #
 # === Word
 #
-# Contains individual keys for each word or group of word in the reverse dictionnary.
+# Contains individual keys for each word or group of words in the reverse dictionnary.
 # Each key is linked to a set of entries containing this word or group of word.
 #
 # ex :
@@ -101,10 +103,26 @@ require File.join(File.dirname(__FILE__), './config.rb')
 # === Tmp
 #
 # Contains temporary entries in order to speed-up search operations.
-# Their uniqueness is determined by the use of the MD5 digest.
+# Their uniqueness is determined by the use of a MD5 digest.
 #
 # ex :
 # tmp:7242d6c91121f8e2e87803855c028e55 => { "entry:192.168.0.5:/animes/plip/plop", ... }
+#
+#
+#
+#
+# == The Scan Process
+#
+# The scan process of an individual FTP server follows those phases :
+# 1. Registration of a new index timestamp
+# 2. Scan of the FTP server
+# 3. Promotion of the new timestamp
+# 4. Cleaning of old file entries and old index
+# 5. Updating of the reverse index (word index)
+# 6. Refresh of cached values
+#
+#
+#
 #
 
 ###############################################################################
