@@ -34,20 +34,24 @@ require File.join(File.dirname(__FILE__), './config.rb')
 ###############################################################################
 ################### DATABASE DESIGN
 
-# We have four top level namespaces :
+# == Database Design
+#
+# === Introduction
+#
+# We have five top level namespaces :
 # - global : handle global variables
 # - entry  : handle scanned entries, each entry is a file or a directory on a given host
 # - ftp    : handle informations for each host we are scanning
 # - word   : handle the reversed index we will use for searching
 #
-# GLOBAL
+# === Global
 #
 # Contains the following keys :
 # - hosts : a set of the FTP server, identified by their IP address
 #
 # ex : global:hosts => { "192.168.0.5", "192.168.0.4" }
 #
-# ENTRY
+# === Entry
 #
 # Contains individual keys for each entry, in the form IP:PATH.
 # Each entry contains a hash with the following items :
@@ -64,7 +68,7 @@ require File.join(File.dirname(__FILE__), './config.rb')
 #   size           => 43
 # }
 #
-# FTP
+# === FTP
 #
 # Contains individual keys for each entry, identified by their IP address.
 # Each key has the following subkeys :
@@ -86,7 +90,7 @@ require File.join(File.dirname(__FILE__), './config.rb')
 # ftp:192.168.0.5:total_size      => 2477566119194
 # ftp:192.168.0.5:total_files     => 155086
 #
-# WORD
+# === Word
 #
 # Contains individual keys for each word or group of word in the reverse dictionnary.
 # Each key is linked to a set of entries containing this word or group of word.
@@ -94,7 +98,7 @@ require File.join(File.dirname(__FILE__), './config.rb')
 # ex :
 # word:"plop" => { "entry:192.168.0.5:/animes/plip/plop", ... }
 #
-# TMP
+# === Tmp
 #
 # Contains temporary entries in order to speed-up search operations.
 # Their uniqueness is determined by the use of the MD5 digest.
@@ -112,15 +116,18 @@ require File.join(File.dirname(__FILE__), './config.rb')
 
 module Entry
 
-
+  #
   # gives the remote path of the entry, eg. ftp://host/full_path
+  #
   def self.remote_path(ip, path)
     "ftp://" + ip + path
   end
 
+  #
   # This method will quickly purge all the dead entries from the entry:* hierarchy of a given IP
   # based on an old good timestamp taken as reference
   # It will return the number of deleted items
+  #
   def self.purge_quick(ip, old_good_timestamp)
     # we check for existence
     $db.exists("ftp:#{ip}:good_timestamp") or return -1
@@ -144,9 +151,11 @@ module Entry
     return diff.length
   end
 
+  #
   # This method will slowly but surely delete all the dead entries which are not
   # in existence according to the current good timestamp for a given ip
   # It will return the number of deleted items
+  #
   def self.purge_slow(ip)
     # we check for existence
     $db.exists("ftp:#{ip}:good_timestamp") or return -1
@@ -181,25 +190,33 @@ end
 
 module FtpServer
 
+  #
   # gives the url of the FTP
+  #
   def self.url(ip)
     "ftp://" + ip
   end
 
+  #
   # gives the name of the FTP
+  #
   def self.name(ip)
     $db.get("ftp:#{ip}:name")
   end
 
+  #
   # gives the number of registered FTP
+  #
   def self.ftp_number
     $db.scard('global:hosts')
   end
 
+  #
   # gives an array of array with informations about every servers
   # each sub-array will contain : 
   # ip, name, number of files, size, good timestamp (last scan), is_alive
   # ex : [["192.168.0.1", "anonymous ftp", "178531", "5020887691106", "1324476909", "true"], ["10.2.0.1", "anonymous ftp", "10353", "674893009291", "1324400214", "true"]]
+  #
   def self.ftp_list
     list = $db.smembers('global:hosts')
     ftp_list = []
@@ -215,7 +232,9 @@ module FtpServer
     return ftp_list
   end
 
+  #
   # calculate the total size of the given FTP server
+  #
   def self.calculate_ftp_size(ip)
     # we retrieve entries
     good_timestamp = $db.get "ftp:#{ip}:good_timestamp"
@@ -230,7 +249,9 @@ module FtpServer
     return ftp_size
   end
 
+  #
   # calculate the total number of files of the given FTP server
+  #
   def self.calculate_ftp_files(ip)
     # we retrieve entries
     good_timestamp = $db.get "ftp:#{ip}:good_timestamp"
@@ -245,24 +266,32 @@ module FtpServer
     return ftp_files
   end
 
+  #
   # refresh cache for total_size and total_files
   # this method must be used as a batch after a global scan
+  #
   def self.refresh_cache(ip)
     $db.set("ftp:#{ip}:total_size", FtpServer.calculate_ftp_size(ip))
     $db.set("ftp:#{ip}:total_files", FtpServer.calculate_ftp_files(ip))
   end
 
+  #
   # gives the size in the FTP, according to the cache
+  #
   def self.ftp_size(ip)
     $db.get("ftp:#{ip}:total_size").to_i || 0
   end
 
+  #
   # gives the number of files in the FTP, according to the cache
+  #
   def self.number_of_files(ip)
     $db.get("ftp:#{ip}:total_files").to_i || 0
   end
 
+  #
   # gives the added total sizes of every FTP servers
+  #
   def self.added_total_size
     hosts = $db.smembers "global:hosts"
     return -1 if hosts.nil?
@@ -273,7 +302,9 @@ module FtpServer
     return sum
   end
 
+  #
   # gives the added total number of files of every FTP servers
+  #
   def self.added_total_number_of_files
     hosts = $db.smembers "global:hosts"
     return -1 if hosts.nil?
@@ -284,8 +315,10 @@ module FtpServer
     return sum
   end
 
+  #
   # give the latest selected value from every FTP
   # example of values : last_ping or good_timestamp
+  #
   def self.global_last(value)
     # in case it is a symbol, we change it to a string
     value = value.to_s
@@ -293,8 +326,9 @@ module FtpServer
     $db.sort("global:hosts", :by => "ftp:*:#{value}", :get => "ftp:*:#{value}", :order => "desc")[0]
   end
 
-
+  #
   # purge old entries in the ftp:IP:* hierarchy
+  #
   def self.purge(ip)
     good_timestamp = $db.get("ftp:#{ip}:good_timestamp")
     outdated_timestamps = $db.smembers("ftp:#{ip}:list_timestamp") - [good_timestamp]
@@ -306,7 +340,9 @@ module FtpServer
     end
   end
 
+  #
   # gives the list of FTP servers hosts depending if they are online or offline
+  #
   def self.list_by_status(state)
     hosts = $db.smembers "global:hosts"
     return -1 if hosts.nil?
@@ -319,7 +355,9 @@ module FtpServer
     return results
   end
 
+  #
   # handle the ping scan backend
+  #
   def self.ping_scan_result(ip, is_alive)
     # fist we check if the host is known in the database
     if $db.sismember("global:hosts", ip)
@@ -356,7 +394,9 @@ module FtpServer
   # BEWARE : The holy scan is below !
   ###################################
   
+  #
   # this is the method which launch the process to index an FTP server
+  #
   def self.get_entry_list(ip ,max_retries = 3)
     require 'net/ftp'
     require 'net/ftp/list'
@@ -468,7 +508,9 @@ module FtpServer
 private
   
 
+  #
   # get entries under parent_path, or get root entries if parent_path is nil
+  #  
   def self.get_list_of(ip, ftp, parent_path = nil, parents = [])
     ic = Iconv.new('UTF-8', 'ISO-8859-1')
     ic_reverse = Iconv.new('ISO-8859-1', 'UTF-8')
@@ -565,8 +607,10 @@ end
 
 module Word
 
+  #
   # This method will return an array of the words we
   # want to match for the given entry in the search engine
+  #
   def self.split_in_words(entry)
     basename = File.basename(entry)
     basename.downcase!
@@ -578,7 +622,9 @@ module Word
     return results
   end
 
+  #
   # This method will insert the given entry in the word index
+  #
   def self.insert_entry(ip,entry)
     words = Word.split_in_words(entry)
     sum = 0
@@ -589,7 +635,9 @@ module Word
     end
   end
 
+  #
   # This method will update all the word index for the given IP
+  #
   def self.update(ip)
     # we retrieve entries
     good_timestamp = $db.get "ftp:#{ip}:good_timestamp"
@@ -602,10 +650,12 @@ module Word
     end
   end
 
+  #
   # This method will purge the word index from invalid entries
   # this method is especially slow as we have to check that
   # every member of every word:* set still exists
   # It is to be used at the end of a global scan
+  #
   def self.purge
     # purge of the word:* entries
     keys_entries = $db.keys("word:*")
@@ -626,15 +676,17 @@ module Word
     end
   end
 
-
+  #
   # search in the inverted index
   # return an array of results
   # especially useful from console.rb
+  #
   def self.search(search_terms)
     search_terms.collect! {|x| 'word:' + x.downcase}
     results = $db.sinter(*search_terms)
   end
 
+  #
   # return an array of entries
   # the params are :
   # query : searched terms
@@ -643,6 +695,7 @@ module Word
   # online : restrict the query to online FTP servers or to every known ones
   # ex :
   # [1, [["192.168.0.1", "/animes/Plip", "1146175200", "4"], ["192.168.0.1", "/animes/Flock/Plip 01.ogm", "1145570400", "734022487"]]]
+  #
   def self.complex_search(query="", page=1, sort="ftp.asc", online=true)
     # here we define how many results we want per page
     per_page = 20
