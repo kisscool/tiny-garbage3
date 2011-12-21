@@ -1,5 +1,5 @@
 # vim: set softtabstop=2 shiftwidth=2 expandtab :
-# (c) 2010 KissCool & Madtree
+# (c) 2011 KissCool & Madtree
 
 require 'rubygems'
 require 'sinatra'
