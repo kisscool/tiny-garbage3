@@ -1,6 +1,5 @@
 source :rubygems
-gem 'mongo'
-gem 'bson_ext'
+gem 'redis'
 gem 'sinatra'
 gem 'haml'
 gem 'sass'

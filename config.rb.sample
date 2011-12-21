@@ -14,14 +14,7 @@
 NETWORKS = '10.2.0.*'
 
 
-# === Altering Behavior ===
-
-# only useful for debugging purpose
-#DataMapper::Logger.new($stdout, :debug)
-
-
 # === Database to use ===
 
-# by default, we use a local mongodb
-$db = Mongo::Connection.new("localhost", 27017, :pool_size => 20, :pool_timeout => 20).db("garbage")
-
+# by default, we use a local Redis instance
+$db = Redis.new(:host => 'localhost', :port => 6379, :db => 'garbage')

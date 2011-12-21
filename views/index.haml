@@ -21,10 +21,10 @@
       #advancedOrder
         Order: 
         %select{:id => 'order', :name => 'order', :value => params[:order]}
-          %option{:value => 'ftp_server_id.ascending', :selected => params[:order] == 'ftp_server_id.ascending'} Server
-          %option{:value => 'name.ascending', :selected => params[:order] == 'name.ascending'} Name
-          %option{:value => 'entry_datetime.descending', :selected => params[:order] == 'entry_datetime.descending'} Date
-          %option{:value => 'size.descending', :selected => params[:order] == 'size.descending'} Size
+          %option{:value => 'ftp.asc', :selected => params[:order] == 'ftp.asc'} Server
+          %option{:value => 'name.asc', :selected => params[:order] == 'name.asc'} Name
+          %option{:value => 'entry_datetime.desc', :selected => params[:order] == 'entry_datetime.desc'} Date
+          %option{:value => 'size.desc', :selected => params[:order] == 'size.desc'} Size
       #advancedOnline
         Show offline:
         %select{:id => 'online', :name => 'online', :value => params[:online]}
@@ -41,16 +41,16 @@
       %th Size
     - if not @results.nil?
       - @results.each do |entry|
-        - ftp_server = FtpServer.collection.find_one('_id' => entry['ftp_server_id'])
+        - ftp_name = FtpServer.name(entry[0])
         %tr
           %td
-            %a{:title => ftp_server['name'], :href => FtpServer.url(ftp_server)}= ftp_server['name']
+            %a{:title => ftp_name, :href => FtpServer.url(entry[0])}= ftp_name
           %td
-            %a{:title => entry['name'], :href => url_utf8(Entry.remote_path(entry))}= Entry.full_path(entry)
+            %a{:title => File.basename(entry[1]), :href => url_utf8(Entry.remote_path(entry[0], entry[1]))}= entry[1]
           %td
-            = human_date(entry['entry_datetime'])
+            = human_date(Time.at(entry[2].to_i))
           %td{:class => "resultsSize"}
-            = number_to_human_size(entry['size'])
+            = number_to_human_size(entry[3])
   - if not @page_count.nil? and @page_count > 1
     pages : 
     = @page_count

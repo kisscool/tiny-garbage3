@@ -11,14 +11,14 @@
       - @ftp_list.each do |ftp|
         %tr
           %td
-            %a{:title => ftp['name'], :href => FtpServer.url(ftp)}= ftp['name']
+            %a{:title => ftp[1], :href => FtpServer.url(ftp[0])}= ftp[1]
           %td
-            = FtpServer.number_of_files(ftp)
+            = ftp[2]
           %td{:class => "centertab"}
-            = number_to_human_size(ftp['total_size'])
+            = number_to_human_size(ftp[3])
           %td{:class => "centertab"}
-            = human_time(ftp['updated_on'])
+            = human_time(Time.at(ftp[4].to_i))
           %td{:class => "centertab"}
-            = ftp['is_alive']
+            = ftp[5]
 
 

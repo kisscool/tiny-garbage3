@@ -35,11 +35,12 @@ class App < Sinatra::Base
     # check our default arguments are valid
     params[:query] ||= ''
     params[:page]  ||= 1
-    params[:order] ||= 'ftp_server_id.ascending'
+    params[:order] ||= 'ftp.asc'
     
     # execute the search method
-    @page_count, @results = Entry.complex_search(
-      format_query(params[:query]), 
+    @page_count, @results = Word.complex_search(
+      #format_query(params[:query]),
+      params[:query],
       params[:page].to_i, 
       params[:order],
       object_to_boolean(params[:online])
@@ -51,17 +52,17 @@ class App < Sinatra::Base
 
   # stats
   get '/stats' do
-    @total_count = FtpServer.collection.count
+    @total_count = FtpServer.ftp_number
     @total_last_ping = FtpServer.global_last(:last_ping)
-    @total_last_scan = FtpServer.global_last(:updated_on)
-    @total_number_of_files = Entry.collection.find('index_version' => FtpServer.index_version, :directory => false).count
+    @total_last_scan = FtpServer.global_last(:good_timestamp)
+    @total_number_of_files = FtpServer.added_total_number_of_files
     @total_size = FtpServer.added_total_size
     haml :stats
   end
 
   # FTP listing
   get '/list' do
-    @ftp_list = FtpServer.collection.find
+    @ftp_list = FtpServer.ftp_list
     haml :list
   end
 

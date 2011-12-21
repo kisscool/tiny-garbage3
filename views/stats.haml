@@ -9,12 +9,12 @@
       %td
         %th Last ping
       %td
-        = human_time(@total_last_ping)
+        = human_time(Time.at(@total_last_ping.to_i))
     %tr
       %td
         %th Last scan
       %td
-        = human_time(@total_last_scan)
+        = human_time(Time.at(@total_last_scan.to_i))
     %tr
       %td
         %th Total number of files
