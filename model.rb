@@ -1,6 +1,5 @@
 # vim: set softtabstop=2 shiftwidth=2 expandtab :
-# (c) 2009 Zouchaoqun
-# (c) 2010 KissCool
+# (c) 2011 KissCool
 require 'rubygems'
 require 'socket'
 # use Bundler if present
@@ -9,243 +8,329 @@ begin
   require 'bundler/setup'
 rescue LoadError
 end
-# let's load the Mongo stuff
-require 'mongo'
-include Mongo
+# let's load the Redis stuff
+require 'redis'
+require 'digest/md5'
+require 'shellwords'
 
-# some of this code has been derived from Zouchaoqun's ezFtpSearch project
-# kuddos to his work
-
-# the code has now become very different than ezFtpSearch
-
+# Originally some of this code has been derived from Zouchaoqun's ezFtpSearch project
+# It is not the case anymore, but kuddos to his work anyway
 
 ###############################################################################
 ################### LOAD OF CONFIGURATION
 
+# defaults values
+PORT         = 21
+IGNORED_DIRS = ". .. .svn"
+LOGIN        = "anonymous"
+PASSWORD     = "garbage3"
+DEFAULT_FTP_NAME = "anonymous ftp"
+WORDS_SEPARATORS = [ /\s/ , /,/ , /\(|\)/ , /;/ , /\./ , /_/ , /\'/ , /[[:punct:]]/ , /:/ , /!/ , /\?/ , /-/ , /\[|\]/ , /\|/ , /\\/ , /`/ , /\{|\}/ , /~/ , /"/ ]     # those are the separators for the inverted index
+
 # here we load config options
+# those options can overwrite the default values above
 require File.join(File.dirname(__FILE__), './config.rb')
 
 ###############################################################################
-################### ORM MODEL CODE (do not edit if you don't know)
+################### DATABASE DESIGN
 
+# We have four top level namespaces :
+# - global : handle global variables
+# - entry  : handle scanned entries, each entry is a file or a directory on a given host
+# - ftp    : handle informations for each host we are scanning
+# - word   : handle the reversed index we will use for searching
 #
-# the Entry class is a generic class for fields and directories 
+# GLOBAL
+#
+# Contains the following keys :
+# - hosts : a set of the FTP server, identified by their IP address
+#
+# ex : global:hosts => { "192.168.0.5", "192.168.0.4" }
+#
+# ENTRY
+#
+# Contains individual keys for each entry, in the form IP:PATH.
+# Each entry contains a hash with the following items :
+# - directory      : check if the entry is a directory or not
+# - entry_datetime : date of the entry has reported by the FTP server
+# - size           : size of the entry has reported by the FTP server
+# - name           : basename of the entry, this redundancy is used to speed-up sort operations
+#
+# ex : 
+# entry:192.168.0.5:/animes/plip/plop => {
+#   directory      => true,
+#   name           => "plop",
+#   entry_datetime => "2010-10-16 20:27:00",
+#   size           => 43
+# }
+#
+# FTP
+#
+# Contains individual keys for each entry, identified by their IP address.
+# Each key has the following subkeys :
+# - IP:good_timestamp    : timestamp of the last known good version of the FTP index
+# - IP:list_timestamp    : set of timestamped index registered in the database
+# - IP:entries:timestamp : set of the FTP index at the given timestamp
+# - IP:name              : name of the given FTP server
+# - IP:is_alive          : was the given FTP server alive during the last check
+# - IP:last_ping         : time of the last check
+# - IP:total_size	 : Cached value of the total size of the FTP server
+# - IP:total_files       : Cached value of the total number of files in the FTP server
+#
+# ex :
+# ftp:192.168.0.5:good_timestamp  => "1324400857"
+# ftp:192.168.0.5:1324400857      => { "/animes/plip/plop", "/animes/plip/plap", ... }
+# ftp:192.168.0.5:name            => "plop ftp"
+# ftp:192.168.0.5:is_alive        => true
+# ftp:192.168.0.5:last_ping       => "2010-10-20 23:27:00"
+# ftp:192.168.0.5:total_size      => 2477566119194
+# ftp:192.168.0.5:total_files     => 155086
+#
+# WORD
+#
+# Contains individual keys for each word or group of word in the reverse dictionnary.
+# Each key is linked to a set of entries containing this word or group of word.
+#
+# ex :
+# word:"plop" => { "entry:192.168.0.5:/animes/plip/plop", ... }
+#
+# TMP
+#
+# Contains temporary entries in order to speed-up search operations.
+# Their uniqueness is determined by the use of the MD5 digest.
+#
+# ex :
+# tmp:7242d6c91121f8e2e87803855c028e55 => { "entry:192.168.0.5:/animes/plip/plop", ... }
+#
+
+###############################################################################
+################### ORM MODEL CODE (do not edit if you don't understand)
+
+
+
+
+
 module Entry
-  # example of a file entry :
-  # {
-  #   "_id"=>BSON::ObjectId('4cdbf81f2a2cd621f7000001'), 
-  #   "directory"=>true, 
-  #   "parent_path"=>"/animes/plip", 
-  #   "index_version"=>6, 
-  #   "entry_datetime"=>"2010-10-16 20:27:00", 
-  #   "ftp_server_id"=>BSON::ObjectId('4cdbf72e2a2cd621da000001'), 
-  #   "size"=>43, 
-  #   "name"=>"plop"
-  # }
 
-  # this is the point of entry to every entries
-  @@collection = $db['entries']
-  def self.collection
-    @@collection
-  end
-
-  ### methods
-
-  # gives the full path of the entry
-  def self.full_path(entry)
-    entry['parent_path'].to_s + "/" + entry['name'].to_s
-  end
 
   # gives the remote path of the entry, eg. ftp://host/full_path
-  def self.remote_path(entry)
-    FtpServer.url(FtpServer.collection.find_one('_id' => entry['ftp_server_id'])) + self.full_path(entry)
+  def self.remote_path(ip, path)
+    "ftp://" + ip + path
   end
 
+  # This method will quickly purge all the dead entries from the entry:* hierarchy of a given IP
+  # based on an old good timestamp taken as reference
+  # It will return the number of deleted items
+  def self.purge_quick(ip, old_good_timestamp)
+    # we check for existence
+    $db.exists("ftp:#{ip}:good_timestamp") or return -1
+    $db.sismember("ftp:#{ip}:list_timestamp", old_good_timestamp) or return -2
 
-  # this method will purge every old entries
-  # the offline ftp list is given as an argument so that we are sure
-  # it is the list as of the moment of the begining of the scan
-  def self.purge(ftp_offline)
-    # first we bump the global variable index_version
-    FtpServer.incr_index_version
-    # then we bump the index_version of offline entries
-    Entry.collection.update({ 'ftp_server_id' => {'$in' => ftp_offline} }, {'$set' => {'index_version' => FtpServer.index_version}}, :multi => true)
-    # then we remove every entries with an index_version inferior to the global variable
-    Entry.collection.remove({'index_version' => {'$lt' => FtpServer.index_version}})
-  end
+    # then we get the new good timestamp and the diff between the two versions
+    new_good_timestamp = $db.get("ftp:#{ip}:good_timestamp")
+    diff = $db.sdiff("ftp:#{ip}:entries:#{old_good_timestamp}", "ftp:#{ip}:entries:#{new_good_timestamp}")
 
-  # return an array of entries
-  # the params are :
-  # query : searched regexps, in the form of "foo.*bar"
-  # page : offset of the page of results we must return
-  # order : order string, in the form of "name", ""size" or "size.descending"
-  # online : restrict the query to online FTP servers or to every known ones
-  def self.complex_search(query="", page=1, order="ftp_server_id.ascending", online=true)
-    # here we define how many results we want per page
-    per_page = 20
-
-    # basic checks and default options
-    query ||= ""
-    page  ||= 1
-    if page < 1
-     page = 1
+    # let's delete the old stuff
+    $db.multi do
+      # we destroy old entries in the entry:* hierarchy
+      diff.each do |x|
+        $db.del("entry:#{ip}:#{x}")
+      end
     end
-    order  ||= "ftp_server_id.ascending"
-    online ||= true
+    # and terminate last traces of any other index in the ftp:IP:entries:* hierarchy
+    FtpServer.purge(ip)
 
-    # we build the query
-    filter = {
-      'name' => /#{query}/i,
-      'index_version' => FtpServer.index_version
-    }
-    # we will get the list of FTP _ids to check if online is true
-    if online
-      ftp_list = FtpServer.list_by_status(true)
-      filter.merge!({ 'ftp_server_id' => {'$in' => ftp_list} })
-    end
-
-    options = {
-      :limit => per_page,
-      :skip => (page - 1) * per_page,
-      :sort => order.split('.')
-    }
-
-    # execute the query
-    results = Entry.collection.find(filter, options)
-    
-    # how many pages we will have
-    page_count = (Entry.collection.find(filter).count.to_f / per_page).ceil
-
-    # finally we return both informations
-    return [ page_count, results ]
+    # then we return the number of deleted entries in the entry:* hierarchy
+    return diff.length
   end
 
+  # This method will slowly but surely delete all the dead entries which are not
+  # in existence according to the current good timestamp for a given ip
+  # It will return the number of deleted items
+  def self.purge_slow(ip)
+    # we check for existence
+    $db.exists("ftp:#{ip}:good_timestamp") or return -1
+
+    # then we get all the entries of the good timestamp index and compare it to the list of entry:IP:* keys
+    good_timestamp = $db.get("ftp:#{ip}:good_timestamp")
+    valid_entries = $db.smembers("ftp:#{ip}:entries:#{good_timestamp}")
+    valid_entries.collect! {|x| "entry:#{ip}:#{x}"}
+    keys_entries = $db.keys("entry:#{ip}:*")
+    diff = keys_entries - valid_entries
+
+    $db.multi do
+      # we destroy old entries in the entry:* hierarchy
+      diff.each do |x|
+        $db.del("entry:#{ip}:#{x}")
+      end
+    end
+    # and terminate last traces of any other index in the ftp:IP:entries:* hierarchy
+    FtpServer.purge(ip)
+    return diff.length    
+  end
 end
 
-#
-# each server is documented here
+
+
+
+
+
+
+
+
+
 module FtpServer
-  # example of a FTP entry :
-  # {
-  #   "_id"=>BSON::ObjectId('4cdbf72e2a2cd621da000001'), 
-  #   "force_utf8"=>true, 
-  #   "ftp_encoding"=>"ISO-8859-1", 
-  #   "ftp_type"=>"Unix", 
-  #   "host"=>"192.168.0.5",
-  #   "port"=>21,
-  #   "ignored_dirs"=>". .. .svn", 
-  #   "is_alive"=>true, 
-  #   "last_ping"=>Thu Nov 11 14:01:18 UTC 2010, 
-  #   "login"=>"anonymous", 
-  #   "password"=>"garbage2"
-  #   "name"=>"My FTP", 
-  #   "updated_on"=>Thu Nov 11 14:09:19 UTC 2010,
-  #   "total_size"=>2477566119194.0,
-  #   "total_files"=>155086
-  # }
-
-
-  # point of entry for every FTP servers
-  @@collection = $db['ftp_servers']
-  def self.collection
-    @@collection
-  end
-
-  ## methods ##
-  
 
   # gives the url of the FTP
-  def self.url(ftp_server)
-    "ftp://" + ftp_server['host']
+  def self.url(ip)
+    "ftp://" + ip
   end
 
-  # gives the total size of all the FTP Servers then insert it in ftp_servers
-  # documents for future check
-  # this method must be used as a batch after a global scan
-  def self.calculate_total_sizes
-    # not sure if it is actually the good method to do it
-    map    = "function() { emit(this.ftp_server_id, {size: this.size}); }"
-    reduce = "function(key, values) { var sum = 0; values.forEach(function(doc) {sum += doc.size}); return {size : sum};}"
-    results = Entry.collection.mapreduce(map, reduce, {:query => {'index_version' => FtpServer.index_version, 'directory' => false}})
-    self.collection.find.each do |ftp|
-      ftp_size = 0
-      result = results.find_one('_id' => ftp['_id'])
-      ftp_size = result['value']['size'] if ! result.nil?
+  # gives the name of the FTP
+  def self.name(ip)
+    $db.get("ftp:#{ip}:name")
+  end
 
-      self.collection.update(
-        { "_id" => ftp["_id"] },
-        { "$set" => { :total_size => ftp_size }}
-      )
+  # gives the number of registered FTP
+  def self.ftp_number
+    $db.scard('global:hosts')
+  end
+
+  # gives an array of array with informations about every servers
+  # each sub-array will contain : 
+  # ip, name, number of files, size, good timestamp (last scan), is_alive
+  # ex : [["192.168.0.1", "anonymous ftp", "178531", "5020887691106", "1324476909", "true"], ["10.2.0.1", "anonymous ftp", "10353", "674893009291", "1324400214", "true"]]
+  def self.ftp_list
+    list = $db.smembers('global:hosts')
+    ftp_list = []
+    list.each do |ip|
+      ftp_line = [ip]
+      ftp_line << $db.get("ftp:#{ip}:name")
+      ftp_line << $db.get("ftp:#{ip}:total_files")
+      ftp_line << $db.get("ftp:#{ip}:total_size")
+      ftp_line << $db.get("ftp:#{ip}:good_timestamp")
+      ftp_line << $db.get("ftp:#{ip}:is_alive")
+      ftp_list << ftp_line
     end
+    return ftp_list
+  end
+
+  # calculate the total size of the given FTP server
+  def self.calculate_ftp_size(ip)
+    # we retrieve entries
+    good_timestamp = $db.get "ftp:#{ip}:good_timestamp"
+    return -1 if good_timestamp.nil?
+    entries = $db.smembers "ftp:#{ip}:entries:#{good_timestamp}"
+    ftp_size = 0
+    #then we add values
+    entries.each do |entry|
+      entry_hash = $db.hgetall "entry:#{ip}:#{entry}"
+      ftp_size = ftp_size + entry_hash['size'].to_i if entry_hash['directory'] == 'false'
+    end
+    return ftp_size
+  end
+
+  # calculate the total number of files of the given FTP server
+  def self.calculate_ftp_files(ip)
+    # we retrieve entries
+    good_timestamp = $db.get "ftp:#{ip}:good_timestamp"
+    return -1 if good_timestamp.nil?
+    entries = $db.smembers "ftp:#{ip}:entries:#{good_timestamp}"
+    ftp_files = 0
+    #then we add values
+    entries.each do |entry|
+      entry_hash = $db.hgetall "entry:#{ip}:#{entry}"
+      ftp_files += 1 if entry_hash['directory'] == 'false'
+    end
+    return ftp_files
+  end
+
+  # refresh cache for total_size and total_files
+  # this method must be used as a batch after a global scan
+  def self.refresh_cache(ip)
+    $db.set("ftp:#{ip}:total_size", FtpServer.calculate_ftp_size(ip))
+    $db.set("ftp:#{ip}:total_files", FtpServer.calculate_ftp_files(ip))
+  end
+
+  # gives the size in the FTP, according to the cache
+  def self.ftp_size(ip)
+    $db.get("ftp:#{ip}:total_size").to_i || 0
+  end
+
+  # gives the number of files in the FTP, according to the cache
+  def self.number_of_files(ip)
+    $db.get("ftp:#{ip}:total_files").to_i || 0
   end
 
   # gives the added total sizes of every FTP servers
   def self.added_total_size
+    hosts = $db.smembers "global:hosts"
+    return -1 if hosts.nil?
     sum = 0
-    FtpServer.collection.find.each do |a|
-      sum += a['total_size'] || 0
+    hosts.each do |ip|
+      sum += $db.get("ftp:#{ip}:total_size").to_i || 0
     end
     return sum
   end
-  
-  # gives the total number of files of all the FTP Servers then insert it in ftp_servers
-  # document for future check
-  # this method must be used as a batch after a global scan
-  def self.calculate_total_number_of_files
-    self.collection.find.each do |ftp|
-      number_of_files = Entry.collection.find('ftp_server_id' => ftp['_id'], 'index_version' => FtpServer.index_version, 'directory' => false).count
-      self.collection.update(
-        { "_id" => ftp["_id"] },
-        { "$set" => { :total_files => number_of_files }}
-      )
-    end
-  end
 
-  # gives the number of files in the FTP
-  def self.number_of_files(ftp_server)
-    ftp_server['total_files'] || 0
+  # gives the added total number of files of every FTP servers
+  def self.added_total_number_of_files
+    hosts = $db.smembers "global:hosts"
+    return -1 if hosts.nil?
+    sum = 0
+    hosts.each do |ip|
+      sum += $db.get("ftp:#{ip}:total_files").to_i || 0
+    end
+    return sum
   end
 
   # give the latest selected value from every FTP
-  # example of values : last_ping or updated_on
+  # example of values : last_ping or good_timestamp
   def self.global_last(value)
     # in case it is a symbol, we change it to a string
     value = value.to_s
     # then we order it
-    self.collection.find.to_a.sort! do |a,b|
-      a_time = a[value] || Time.at(0)   # in case the first scan has not happened
-      b_time = b[value] || Time.at(0)   # yet
-      a_time <=> b_time
-    end.last[value]
+    $db.sort("global:hosts", :by => "ftp:*:#{value}", :get => "ftp:*:#{value}", :order => "desc")[0]
   end
 
-  # gives the list of FTP servers _ids depending if they are online or offline
-  def self.list_by_status(state)
-    FtpServer.collection.find('is_alive' => state).collect {|ftp| ftp['_id']}
-  end
 
-  # the index_version is a variable global to all the FTP servers
-  def self.index_version
-    index_doc = $db['ftp_global'].find_one('name' => 'index_version')
-    if index_doc.nil?
-      $db['ftp_global'].insert({ 'name' => 'index_version', 'value' => 0 })
-      return 0
-    else
-      return index_doc['value']
+  # purge old entries in the ftp:IP:* hierarchy
+  def self.purge(ip)
+    good_timestamp = $db.get("ftp:#{ip}:good_timestamp")
+    outdated_timestamps = $db.smembers("ftp:#{ip}:list_timestamp") - [good_timestamp]
+    $db.multi do
+      outdated_timestamps.each do |x|
+        $db.del("ftp:#{ip}:entries:#{x}")
+        $db.srem("ftp:#{ip}:list_timestamp", x)
+      end
     end
   end
-  # increment the gobal index_version variable
-  def self.incr_index_version
-    $db['ftp_global'].update({'name' => 'index_version'}, {'$inc' => {'value' => 1}})
+
+  # gives the list of FTP servers hosts depending if they are online or offline
+  def self.list_by_status(state)
+    hosts = $db.smembers "global:hosts"
+    return -1 if hosts.nil?
+    results = []
+    hosts.each do |ip| 
+      if $db.get("ftp:#{ip}:is_alive") == state.to_s
+        results << ip
+      end
+    end
+    return results
   end
 
-
   # handle the ping scan backend
-  def self.ping_scan_result(host, is_alive)
+  def self.ping_scan_result(ip, is_alive)
     # fist we check if the host is known in the database
-    server = self.collection.find_one({'host' => host})
-    if server.nil?
-      # if the server doesn't exist
+    if $db.sismember("global:hosts", ip)
+      # if the server does exist in the database
+      # then we update its status
+      $db.multi do
+        $db.set("ftp:#{ip}:is_alive", is_alive)
+        $db.set("ftp:#{ip}:last_ping", Time.now)
+      end
+    else
+     # if the server doesn't exist yet
       if is_alive
         # but that he is a FTP server
         # then we create it
@@ -255,37 +340,24 @@ module FtpServer
         rescue
           name = "anonymous ftp"
         end
-        item = {
-          :host       => host,
-          :name       => name,
-          :port       => 21,
-          :ftp_type   => 'Unix',
-          :ftp_encoding => 'ISO-8859-1',
-          :force_utf8  => true,
-          :login     => 'anonymous',
-          :password  => 'garbage2',
-          :ignored_dirs => '. .. .svn',
-          :is_alive   => is_alive,
-          :last_ping  => Time.now
-        }
-        self.collection.insert item
+        $db.multi do
+          $db.set("ftp:#{ip}:name", name)
+          $db.set("ftp:#{ip}:is_alive", true)
+          $db.set("ftp:#{ip}:last_ping", Time.now.to_i.to_s)
+          
+          $db.sadd("global:hosts", ip)
+        end
       end
-    else
-      # if the server exists in the database
-      # then we update its status
-      self.collection.update(
-        { "_id" => server["_id"] },
-        { "$set" => {
-          :is_alive   => is_alive,
-          :last_ping  => Time.now
-          }
-        }
-      )
     end
   end
 
+
+  ###################################
+  # BEWARE : The holy scan is below !
+  ###################################
+  
   # this is the method which launch the process to index an FTP server
-  def self.get_entry_list(ftp_server ,max_retries = 3)
+  def self.get_entry_list(ip ,max_retries = 3)
     require 'net/ftp'
     require 'net/ftp/list'
     require 'iconv'
@@ -301,20 +373,19 @@ module FtpServer
       @logger = Logger.new(File.dirname(__FILE__) + '/log/spider.log', 0)
       @logger.formatter = Logger::Formatter.new
       @logger.datetime_format = "%Y-%m-%d %H:%M:%S"
-      @logger.info("on #{ftp_server['host']} : Trying ftp server #{ftp_server['name']} (id=#{ftp_server['_id']})")
-      ftp = Net::FTP.open(ftp_server['host'], ftp_server['login'], ftp_server['password'])
+      @logger.info("on #{ip} : Trying ftp server #{$db.get "ftp:#{ip}:name"}")
+      ftp = Net::FTP.open(ip, LOGIN, PASSWORD)
       ftp.passive = true
     rescue => detail
       retries_count += 1
-      @logger.error("on #{ftp_server['host']} : Open ftp exception: " + detail.class.to_s + " detail: " + detail.to_s)
-      @logger.error("on #{ftp_server['host']} : Retrying #{retries_count}/#{@max_retries}.")
+      @logger.error("on #{ip} : Open ftp exception: " + detail.class.to_s + " detail: " + detail.to_s)
+      @logger.error("on #{ip} : Retrying #{retries_count}/#{@max_retries}.")
       if (retries_count >= @max_retries)
-        @logger.error("on #{ftp_server['host']} : Retry reach max times, now exit.")
-        #@logger.close
+        @logger.error("on #{ip} : Retry reach max times, now exit.")
         exit
       end
       ftp.close if (ftp && !ftp.closed?)
-      @logger.error("on #{ftp_server['host']} : Wait 30s before retry open ftp")
+      @logger.error("on #{ip} : Wait 30s before retry open ftp")
       sleep(30)
       retry
     end
@@ -322,129 +393,161 @@ module FtpServer
     # Trying to get ftp entry-list
     get_list_retries = 0
     begin
-      @logger.info("on #{ftp_server['host']} : Server connected")
+      @logger.info("on #{ip} : Server connected")
       start_time = Time.now
       @entry_count = 0
       
-      # building the index
-      @index_version = FtpServer.index_version
-      get_list_of(ftp_server, ftp)
-
-      # updating the time of last scan
-      self.collection.update(
-        { "_id" => ftp_server["_id"] },
-        { "$set" => { :updated_on  => Time.now }
-        }
-      )
+      # registering the new timestamp
+      @new_good_timestamp = start_time.to_i.to_s
+      $db.sadd("ftp:#{ip}:list_timestamp", @new_good_timestamp)
       
+      # building the index
+      get_list_of(ip, ftp)
+
       process_time = Time.now - start_time
-      @logger.info("on #{ftp_server['host']} : Finish getting list of server " + ftp_server['name'] + " in " + process_time.to_s + " seconds.")
-      @logger.info("on #{ftp_server['host']} : Total entries: #{@entry_count}. #{(@entry_count/process_time).to_i} entries per second.")
+      name = $db.get("ftp:#{ip}:name")
+      name ||= DEFAULT_FTP_NAME
+      @logger.info("on #{ip} : Finish getting list of server " + name + " in " + process_time.to_s + " seconds.")
+      @logger.info("on #{ip} : Total entries: #{@entry_count}. #{(@entry_count/process_time).to_i} entries per second.")
     rescue => detail
       get_list_retries += 1
-      @logger.error("on #{ftp_server['host']} : Get entry list exception: " + detail.class.to_s + " detail: " + detail.to_s)
-      @logger.error("on #{ftp_server['host']} : Retrying #{get_list_retries}/#{@max_retries}.")
+      @logger.error("on #{ip} : Get entry list exception: " + detail.class.to_s + " detail: " + detail.to_s)
+      @logger.error("on #{ip} : Retrying #{get_list_retries}/#{@max_retries}.")
       raise if (get_list_retries >= @max_retries)
       retry
     ensure
       ftp.close if !ftp.closed?
-      @logger.info("on #{ftp_server['host']} : Ftp connection closed.")
-      # not the smartiest solution, but closing the log device can be a real issue in a multi-threaded environment
-      #@logger.close
+      @logger.info("on #{ip} : Ftp connection closed.")
     end
+
+    # now we promote the new good timestamp and clean old entries
+    start_time = Time.now
+    @logger.info("on #{ip} : Cleaning old entries, new good_timestamp will be : " + @new_good_timestamp)
+    begin
+      old_good_timestamp = $db.getset("ftp:#{ip}:good_timestamp", @new_good_timestamp)
+      #count = Entry.purge_quick(ip, old_good_timestamp) if ! old_good_timestamp.nil?
+      count = Entry.purge_slow(ip)  # very slow, but more reliable in case of human error from myself
+    rescue => detail
+      @logger.error("on #{ip} : Error during cleaning procedure " + detail.class.to_s + " detail: " + detail.to_s)
+      exit
+    end
+    process_time = Time.now - start_time
+    @logger.info("on #{ip} : Cleaning procedure destroyed #{count} items and took " + process_time.to_s + " seconds.")
+
+    # now we update our reverse index for searches
+    start_time = Time.now
+    @logger.info("on #{ip} : Wordindex update procedure")
+    begin
+      Word.update(ip)
+    rescue => detail
+      @logger.error("on #{ip} : Error during wordindex procedure " + detail.class.to_s + " detail: " + detail.to_s)
+      exit
+    end
+    process_time = Time.now - start_time
+    @logger.info("on #{ip} : Wordindex update procedure took " + process_time.to_s + " seconds.")
+
+    # then finaly we refresh the cache
+    start_time = Time.now
+    @logger.info("on #{ip} : Refresh of cache update procedure")
+    begin
+      FtpServer.refresh_cache(ip)
+    rescue => detail
+      @logger.error("on #{ip} : Error during refresh of cache procedure " + detail.class.to_s + " detail: " + detail.to_s)
+      exit
+    end
+    process_time = Time.now - start_time
+    @logger.info("on #{ip} : Refresh of cache update procedure took " + process_time.to_s + " seconds.")
+
+
+    # not the smartiest solution, but closing the log device can be a real issue in a multi-threaded environment
+    @logger.info("on #{ip} : scan finished.")
+    #@logger.close
   end
 
-private
 
+private
   
 
   # get entries under parent_path, or get root entries if parent_path is nil
-  def self.get_list_of(ftp_server, ftp, parent_path = nil, parents = [])
-    ic = Iconv.new('UTF-8', ftp_server['ftp_encoding']) if ftp_server['force_utf8']
-    ic_reverse = Iconv.new(ftp_server['ftp_encoding'], 'UTF-8') if ftp_server['force_utf8']
+  def self.get_list_of(ip, ftp, parent_path = nil, parents = [])
+    ic = Iconv.new('UTF-8', 'ISO-8859-1')
+    ic_reverse = Iconv.new('ISO-8859-1', 'UTF-8')
 
     retries_count = 0
     begin
       entry_list = parent_path ? ftp.list(parent_path) : ftp.list
     rescue => detail
       retries_count += 1
-      @logger.error("on #{ftp_server['host']} : Ftp LIST exception: " + detail.class.to_s + " detail: " + detail.to_s)
-      @logger.error("on #{ftp_server['host']} : Ftp LIST exception: the parent_path (if present) was : " + parent_path)
-      @logger.error("on #{ftp_server['host']} : Retrying get ftp list #{retries_count}/#{@max_retries}")
+      @logger.error("on #{ip} : Ftp LIST exception: " + detail.class.to_s + " detail: " + detail.to_s)
+      @logger.error("on #{ip} : Ftp LIST exception: the parent_path (if present) was : " + parent_path) if ! parent_path.nil?
+      @logger.error("on #{ip} : Retrying get ftp list #{retries_count}/#{@max_retries}")
       return 0 if (retries_count >= @max_retries_get_list)
       
       reconnect_retries_count = 0
       begin
         ftp.close if (ftp && !ftp.closed?)
-        @logger.error("on #{ftp_server['host']} : Wait 30s before reconnect")
+        @logger.error("on #{ip} : Wait 30s before reconnect")
         sleep(30)
-        ftp.connect(ftp_server['host'])
-        ftp.login(ftp_server['login'], ftp_server['password'])
+        ftp.connect(ip)
+        ftp.login(LOGIN, PASSWORD)
         ftp.passive = true
-      rescue => detail2
+      rescue => detail
         reconnect_retries_count += 1
-        @logger.error("on #{ftp_server['host']} : Reconnect ftp failed, exception: " + detail2.class.to_s + " detail: " + detail2.to_s)
-        @logger.error("on #{ftp_server['host']} : Retrying reconnect #{reconnect_retries_count}/#{@max_retries}")
+        @logger.error("on #{ip} : Reconnect ftp failed, exception: " + detail.class.to_s + " detail: " + detail.to_s)
+        @logger.error("on #{ip} : Retrying reconnect #{reconnect_retries_count}/#{@max_retries}")
         raise if (reconnect_retries_count >= @max_retries)
         retry
       end
       
-      @logger.error("on #{ftp_server['host']} : Ftp reconnected!")
+      @logger.error("on #{ip} : Ftp reconnected!")
       retry
     end
 
     entry_list.each do |e|
       # Some ftp will send 'total nn' string in LIST command
       # We should ignore this line
+      next if e.nil?
       next if /^total/.match(e)
 
       # usefull for debugging purpose
       #puts "#{@entry_count} #{e}"
 
-      if ftp_server['force_utf8']
-        begin
-          e_utf8 = ic.iconv(e)
-        rescue Iconv::IllegalSequence
-          @logger.error("on #{ftp_server['host']} : Iconv::IllegalSequence, file ignored. raw data: " + e)
-          next
-        end
+      begin
+        e_utf8 = ic.iconv(e)
+      rescue => detail
+        @logger.error("on #{ip} : Iconv failed, exception: " + detail.class.to_s + " detail: " + detail.to_s + " file ignored. raw data: " + e)   
+        next       
       end
-      entry = Net::FTP::List.parse(ftp_server['force_utf8'] ? e_utf8 : e)
 
-      next if ftp_server['ignored_dirs'].include?(entry.basename)
+      begin
+        entry = Net::FTP::List.parse(e_utf8)
+      rescue => detail
+        @logger.error("on #{ip} : Net::FTP::List.parse exception:" + detail.class.to_s + " detail: " + detail.to_s + " file ignored. raw data: " + e_utf8)
+        next
+     end
 
+      next if IGNORED_DIRS.include?(entry.basename)
       @entry_count += 1
 
       begin
         file_datetime = entry.mtime.strftime("%Y-%m-%d %H:%M:%S")
-      rescue => detail3
-        puts("on #{ftp_server['host']} : strftime failed, exception: " + detail3.class.to_s + " detail: " + detail3.to_s)
-        @logger.error("on #{ftp_server['host']} : strftime failed, exception: " + detail3.class.to_s + " detail: " + detail3.to_s)   
-        @logger.error("on #{ftp_server['host']} : raw entry: " + e)
+      rescue => detail
+        @logger.error("on #{ip} : strftime failed, exception: " + detail.class.to_s + " detail: " + detail.to_s + " raw entry : " + e )
       end
       
-      #entry_basename = entry.basename.gsub("'","''")
-      entry_basename = entry.basename
+      full_path = (parent_path ? parent_path : '') + '/' + ic.iconv(entry.basename)
 
       # here we build the document
       # that will be inserted in
       # the datastore
-      item = {
-        :name => entry_basename,
-        :parent_path => parent_path,
-        :size => entry.filesize,
-        :entry_datetime => entry.mtime,
-        :directory => entry.dir?,
-        :ftp_server_id => ftp_server['_id'],
-        :index_version => @index_version+1
-      }
-      Entry.collection.insert item
+      $db.multi do
+        $db.hmset("entry:#{ip}:#{full_path}", "directory", entry.dir?, "name", entry.basename, "size", entry.filesize, "entry_datetime", entry.mtime.to_i.to_s)
+        $db.sadd("ftp:#{ip}:entries:#{@new_good_timestamp}", full_path)
+      end
       
       if entry.dir?
-        ftp_path = (parent_path ? parent_path : '') + '/' +
-                          (ftp_server['force_utf8'] ? ic.iconv(entry.basename) : entry.basename)
-                          #(ftp_server['force_utf8'] ? ic_reverse.iconv(entry.basename) : entry.basename)
-        get_list_of(ftp_server, ftp, ftp_path, parents)
+        ftp_path = (parent_path ? parent_path : '') + '/' + ic.iconv(entry.basename)
+        get_list_of(ip, ftp, ftp_path, parents)
       end
     end
   end
@@ -452,3 +555,157 @@ private
 
 end
 
+
+
+
+
+
+
+
+
+module Word
+
+  # This method will return an array of the words we
+  # want to match for the given entry in the search engine
+  def self.split_in_words(entry)
+    basename = File.basename(entry)
+    basename.downcase!
+    results = []
+    WORDS_SEPARATORS.each do |regexp|
+      results << basename.split(regexp)
+    end
+    results = results.flatten.uniq - [""]
+    return results
+  end
+
+  # This method will insert the given entry in the word index
+  def self.insert_entry(ip,entry)
+    words = Word.split_in_words(entry)
+    sum = 0
+    $db.multi do
+      words.each do |word|
+        $db.sadd("word:#{word}", "entry:#{ip}:#{entry}")
+      end
+    end
+  end
+
+  # This method will update all the word index for the given IP
+  def self.update(ip)
+    # we retrieve entries
+    good_timestamp = $db.get "ftp:#{ip}:good_timestamp"
+    return -1 if good_timestamp.nil?
+    entries = $db.smembers "ftp:#{ip}:entries:#{good_timestamp}"
+   
+    # then treat each entry
+    entries.each do |entry|
+      Word.insert_entry(ip,entry)
+    end
+  end
+
+  # This method will purge the word index from invalid entries
+  # this method is especially slow as we have to check that
+  # every member of every word:* set still exists
+  # It is to be used at the end of a global scan
+  def self.purge
+    # purge of the word:* entries
+    keys_entries = $db.keys("word:*")
+    keys_entries.each do |key|
+      key_members = $db.smembers(key)
+      key_members.each do |entry|
+        if ! $db.exists(entry)
+          $db.srem(key, entry)
+        end
+      end
+    end
+    # purge of the tmp:* entries
+    keys_entries = $db.keys("tmp:*")
+    $db.multi do
+      keys_entries.each do |key|
+        $db.del(key)
+      end
+    end
+  end
+
+
+  # search in the inverted index
+  # return an array of results
+  # especially useful from console.rb
+  def self.search(search_terms)
+    search_terms.collect! {|x| 'word:' + x.downcase}
+    results = $db.sinter(*search_terms)
+  end
+
+  # return an array of entries
+  # the params are :
+  # query : searched terms
+  # page : offset of the page of results we must return
+  # order : order string, in the form of "ftp", "size", "name", "date" or "size.desc"
+  # online : restrict the query to online FTP servers or to every known ones
+  # ex :
+  # [1, [["192.168.0.1", "/animes/Plip", "1146175200", "4"], ["192.168.0.1", "/animes/Flock/Plip 01.ogm", "1145570400", "734022487"]]]
+  def self.complex_search(query="", page=1, sort="ftp.asc", online=true)
+    # here we define how many results we want per page
+    per_page = 20
+
+    # basic checks and default options
+    query ||= ""
+    page  ||= 1
+    if page < 1
+     page = 1
+    end
+    sort  ||= "ftp.asc"
+    online ||= true
+
+    # we build the query and generate the temporary set if 
+    # it doesn't already exists in temp:*
+    md5 = Digest::MD5.hexdigest(query)
+    tmpkey = 'tmp:' + md5
+   
+    if ! $db.exists(tmpkey)
+      # we take the time to actually execute the query
+      # only if it is not already in cache
+      search_terms = Shellwords.shellwords(query)
+      search_terms.collect! {|x| 'word:' + x.downcase}
+      $db.multi do
+        $db.sinterstore(tmpkey, *search_terms)
+        $db.expire(tmpkey, 3600)
+      end
+    end
+
+    # how many pages we will have
+    page_count = ($db.scard(tmpkey).to_f / per_page).ceil
+
+    # we define options for the sort
+    limit = [(page - 1) * per_page, per_page]
+    by = (sort.include?('ftp')) ? '' : "*->#{sort.split('.')[0]}"
+    order=''
+    order << ( (sort.include?('desc')) ? 'desc' : '' )
+    order << ( (sort.include?('size')) ? '' : ' alpha' )
+
+    options = {
+     :limit => limit,
+     :by => by,
+     :order => order,
+     :get => ["#", "*->entry_datetime", "*->size"]
+    }
+
+    # then we do the sort itself
+    results_raw = $db.sort(tmpkey, options)
+    # and make it match a more usable format :
+    # array of arrays, with each sub-array in the following format :
+    # ip, path, entry_datetime, size
+    results = results_raw.each_slice(3).to_a.collect do |x| 
+      exploded_entry = x[0].split(/:/,3)
+      [exploded_entry[1], exploded_entry[2], x[1], x[2]]
+    end
+
+    # we will trim the results if online is true
+    if online
+      ftp_list = FtpServer.list_by_status(true)
+      results.delete_if {|x| ! ftp_list.include?(x[0]) }
+    end
+
+    # finally we return both informations
+    return [ page_count, results ]
+  end
+end
