@@ -17,4 +17,4 @@ NETWORKS = '10.2.0.*'
 # === Database to use ===
 
 # by default, we use a local Redis instance
-$db = Redis.new(:host => 'localhost', :port => 6379, :db => 'garbage')
+$db = Redis.new(:host => 'localhost', :port => 6379)
