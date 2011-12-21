@@ -1,0 +1,28 @@
+#resultsDiv
+  %table{:id => "results"}
+    %tr
+      %td
+        %th Number of FTP Servers
+      %td
+        = @total_count
+    %tr
+      %td
+        %th Last ping
+      %td
+        = human_time(@total_last_ping)
+    %tr
+      %td
+        %th Last scan
+      %td
+        = human_time(@total_last_scan)
+    %tr
+      %td
+        %th Total number of files
+      %td
+        = @total_number_of_files
+    %tr
+      %td
+        %th Total cumulative size
+      %td
+        = number_to_human_size(@total_size)
+

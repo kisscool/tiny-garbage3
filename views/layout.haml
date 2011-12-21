@@ -1,0 +1,30 @@
+%html
+  %head
+    %title Tiny Garbage
+    %link{:rel => "stylesheet", :href => "/stylesheet.css", :type => "text/css"}/
+    %script{:type => "text/javascript", :src => "/js/jquery.js"}
+    %script{:type => "text/javascript", :src => "/js/main.js"}
+  %body
+    #container
+      %nav
+        %ul
+          %div{:class => 'topnavlink' } 
+            %a{:title => 'Search', :href => "/"} Search
+          %div{:class => 'topnavlink' } 
+            %a{:title => 'FTP Listing', :href => "/list"} FTP Listing
+          %div{:class => 'topnavlink' } 
+            %a{:title => 'Stats', :href => "/stats"} Stats
+      %header
+        %div{:class => 'spacer'}
+        #headerLogo
+          %img{:src => 'img/garbage.png', :height => "80px"}
+        #headerText
+          %a{:title => 'Tiny Garbage', :href => '/'}
+            Tiny::Garbage
+
+      #content-wrapper
+        %content
+          = yield
+      #footer-wrapper
+        %footer Tiny Garbage -- &copy; KissCool and Madtree<br/> powered by sinatra 
+       

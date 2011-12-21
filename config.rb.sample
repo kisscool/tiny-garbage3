@@ -1,0 +1,27 @@
+# vim: set softtabstop=2 shiftwidth=2 expandtab :
+
+###############################################################################
+################### CONFIGURATION
+
+# in order to configure Tiny-Garbage, just copy config.rb.sample as 
+# config.rb, uncomment what you want and voila !
+
+
+# === Networks to scan ===
+
+# Here you can specify the format of the networks Tiny-Garbage will scan
+# in the following format : '10.2.0.* 10.3.0.1'
+NETWORKS = '10.2.0.*'
+
+
+# === Altering Behavior ===
+
+# only useful for debugging purpose
+#DataMapper::Logger.new($stdout, :debug)
+
+
+# === Database to use ===
+
+# by default, we use a local mongodb
+$db = Mongo::Connection.new("localhost", 27017, :pool_size => 20, :pool_timeout => 20).db("garbage")
+

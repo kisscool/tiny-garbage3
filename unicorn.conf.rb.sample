@@ -1,0 +1,17 @@
+# Minimal sample configuration file for Unicorn (not Rack) when used
+# with daemonization (unicorn -D) started in your working directory.
+#
+# See http://unicorn.bogomips.org/Unicorn/Configurator.html for complete
+# documentation.
+# See also http://unicorn.bogomips.org/examples/unicorn.conf.rb for
+# a more verbose configuration using more features.
+
+@dir = "/path/to/tiny-garbage2"
+working_directory @dir
+
+listen "127.0.0.1:3000" # by default Unicorn listens on port 8080
+worker_processes 4 # this should be >= nr_cpus
+
+pid "#{@dir}/unicorn.pid"
+stderr_path "#{@dir}/log/unicorn.log"
+stdout_path "#{@dir}/log/unicorn.log"

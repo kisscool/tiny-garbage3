@@ -1,0 +1,67 @@
+%form{:method => 'get', :action => '/search', :id => "searchForm"}
+  #searchDivWrapper
+    #searchDiv
+      #beautyDiv 
+        #searchBarDiv
+          %table{:id => 'searchBarWrapper'}
+            %tr
+              %td
+                %input{:type => 'search', :name => 'query', :placeholder => 'Poney.avi',:value => params[:query], :id => "searchBar" }
+              %td
+                %input{:type => "submit", :value => "Search", :class => "button", :id => "searchButton", :class => "searchButton", :onmousedown => "this.className='searchButtonClick'", :onmouseup => "this.className='searchButton'"}
+        #beautyDiv2
+        %div{:class => 'spacer'}
+      #collapseDiv
+        %div{:id => "collapseImg", :class => "collapseImgVisible"}
+        #collapseText
+          %a{:title => 'show/hide advanced', :href => "#", :id => "collapseButton"} Show advanced
+      %div{:class => 'spacer'}
+    #advancedSearch
+      %div{:class => 'spacer'}
+      #advancedOrder
+        Order: 
+        %select{:id => 'order', :name => 'order', :value => params[:order]}
+          %option{:value => 'ftp_server_id.ascending', :selected => params[:order] == 'ftp_server_id.ascending'} Server
+          %option{:value => 'name.ascending', :selected => params[:order] == 'name.ascending'} Name
+          %option{:value => 'entry_datetime.descending', :selected => params[:order] == 'entry_datetime.descending'} Date
+          %option{:value => 'size.descending', :selected => params[:order] == 'size.descending'} Size
+      #advancedOnline
+        Show offline:
+        %select{:id => 'online', :name => 'online', :value => params[:online]}
+          %option{:value => 'true', :selected => params[:online] == 'true'} No
+          %option{:value => 'false', :selected => params[:online] == 'false'} Yes
+
+
+#resultsDiv
+  %table{:id => "results"}
+    %tr
+      %th FTP
+      %th File name
+      %th Date
+      %th Size
+    - if not @results.nil?
+      - @results.each do |entry|
+        - ftp_server = FtpServer.collection.find_one('_id' => entry['ftp_server_id'])
+        %tr
+          %td
+            %a{:title => ftp_server['name'], :href => FtpServer.url(ftp_server)}= ftp_server['name']
+          %td
+            %a{:title => entry['name'], :href => url_utf8(Entry.remote_path(entry))}= Entry.full_path(entry)
+          %td
+            = human_date(entry['entry_datetime'])
+          %td{:class => "resultsSize"}
+            = number_to_human_size(entry['size'])
+  - if not @page_count.nil? and @page_count > 1
+    pages : 
+    = @page_count
+    #pager  
+      - if params[:page].to_i > 1
+        #pagerPrevious
+          %a{:title => 'previous', :href => "/search?query=#{params[:query]}&order=#{params[:order]}&online=#{params[:online]}&page=#{params[:page].to_i - 1}"} Previous
+      #pagerMain
+        - pager(@page_count, params[:page].to_i).each do |p|        
+          %a{:title => 'page', :href => "/search?query=#{params[:query]}&order=#{params[:order]}&online=#{params[:online]}&page=#{p}"}= p
+      - if params[:page].to_i < @page_count
+        #pagerNext
+          %a{:title => 'next', :href => "/search?query=#{params[:query]}&order=#{params[:order]}&online=#{params[:online]}&page=#{params[:page].to_i + 1}"} Next
+        %div{:class => 'spacer'}

@@ -1,0 +1,24 @@
+
+#resultsDiv
+  %table{:id => "results"}
+    %tr
+      %th Name
+      %th Number of files
+      %th Size
+      %th Last scan
+      %th Online?
+    - if not @ftp_list.nil?
+      - @ftp_list.each do |ftp|
+        %tr
+          %td
+            %a{:title => ftp['name'], :href => FtpServer.url(ftp)}= ftp['name']
+          %td
+            = FtpServer.number_of_files(ftp)
+          %td{:class => "centertab"}
+            = number_to_human_size(ftp['total_size'])
+          %td{:class => "centertab"}
+            = human_time(ftp['updated_on'])
+          %td{:class => "centertab"}
+            = ftp['is_alive']
+
+
