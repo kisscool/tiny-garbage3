@@ -24,48 +24,45 @@ require File.join(File.dirname(__FILE__), '../lib/threadpool.rb')
 
 # === Index ===
 
+#
 # this cron job will attempt to crawl each FTP server listed
 # in the database
 # the recommended frequency for this job is once a day
 #
 # this job is multi-threaded with 5 threads for now
-
+#
 def index
   # we prepare the threadpool
   pool = ThreadPool.new(5)
 
-  # we take note of offline nodes _ids
-  ftp_offline = FtpServer.list_by_status(false)
-
   # then we iterate on online ones
-  FtpServer.collection.find({'is_alive' => true}).each do |ftp|
+  FtpServer.list_by_status(true).each do |ip|
     # we use thread in order to speed up the process
-    pool.dispatch(ftp) do |ftp|
+    pool.dispatch(ip) do |ip|
       begin
         # scan the following ftp
-        FtpServer.get_entry_list ftp
+        FtpServer.get_entry_list ip
       rescue => detail
-        puts "Exception on host " + ftp['host'] + ", exception: " + detail.class.to_s + " detail: " + detail.to_s
+        puts "Index job : Exception on host " + ip + ", exception: " + detail.class.to_s + " detail: " + detail.to_s
       end
     end
   end
 
   # we close the threadpool
   pool.shutdown
-  # we purge old entries
-  Entry.purge ftp_offline
-  # then we calculate total sizes and total of files for every FTP
-  FtpServer.calculate_total_sizes
-  FtpServer.calculate_total_number_of_files
-  # and finaly we rebuild indexes
-  Entry.collection.create_index('name', :background => true)
+  # We purge old entries in the Word index (revere index for search) database
+  # This particulare cleaning operation must only be done at the very end of
+  # the scan procedure, because of its slowness
+  Word.purge
 end
 
 
 # === Ping ===
 
+#
 # expand networks in an array of hosts
 # eg. "10.2.0.* 10.3.0.1" --> ["10.2.0.1", "10.2.0.2", ..., "10.3.0.1"]
+#
 def expand_network(networks)
   # we split the string
   expanded_ip_list = networks.split(" ").collect do |network|
@@ -83,14 +80,17 @@ def expand_network(networks)
   expanded_ip_list.flatten
 end
 
+#
 # check if an host is alive on the TCP port 21 (2 second timeout)
+#
 def ping_tcp(ip)
   Ping.pingecho(ip, 2, 21)
 end
 
+#
 # check if we can make an FTP connexion with an host
+#
 def ping_ftp(ip)
-  #puts ip
   @logger.info("on #{ip} : Trying alive host #{ip} for FTP connexion}")
   # we check if its FTP port is open
   retries_count = 0
@@ -120,12 +120,12 @@ def ping_ftp(ip)
   end
 end
 
-# this cron job will attempt to ping an IP range with the 
-# UNIX utility 'fping'
+#
+# this cron job will attempt to ping an IP range
 # the recommenced frequency for this job is one every 
 # 10 minutes for a little network, or once an hour for a
 # big network
-
+#
 def ping
   # we get a list of hosts to check
   expanded_ip_list = expand_network(@options[:networks])
