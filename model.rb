@@ -394,14 +394,14 @@ module FtpServer
     # first we remove the entry:$ip:* keys
     keys_entries = $db.keys("entry:#{ip}:*")
     $db.multi do
-      keys.each do |x|
+      keys_entries.each do |x|
         $db.del(x)
       end
     end
     # then we do the same with the ftp:$ip:* keys
     keys_entries = $db.keys("ftp:#{ip}:*")
     $db.multi do
-      keys.each do |x|
+      keys_entries.each do |x|
         $db.del(x)
       end
     end
