@@ -38,6 +38,10 @@ OptionParser.new do |opts|
   opts.on("-d", "--delete", "Delete the selected host") do |del|
     options[:action] = :delete
   end
+  opts.on("-s", "--stats", "Statistics on the database") do |stat|
+    options[:action] = :stats
+  end
+
 
 end.parse!
 
@@ -73,6 +77,11 @@ when :name
 when :delete
   FtpServer.remove(options[:host])
   puts "Host deleted and entries purged"
+when :stats
+  info = $db.info
+  ['used_memory_human','db0','connected_clients'].each do |item|
+    puts "#{item.ljust(12)}\t#{info[item]}"
+  end
 else
   puts "Unknown action"
   exit
