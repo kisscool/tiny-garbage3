@@ -491,7 +491,7 @@ module FtpServer
     require 'logger'
     @max_retries = max_retries.to_i
     # with a value of 1 we will simply ignore charset errors without retry
-    @max_retries_get_list = 1
+    @max_retries_get_list = 2
     BasicSocket.do_not_reverse_lookup = true
 
     # Trying to open ftp server, exit on max_retries
