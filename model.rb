@@ -160,8 +160,8 @@ module Entry
     entry_list = []
     list.each do |entry|
       entry_line = [entry]
-      entry_line << $db.hget("entry:#{ip}:#{entry}", size)
-      entry_line << $db.hget("entry:#{ip}:#{entry}", entry_datetime)
+      entry_line << $db.hget("entry:#{ip}:#{entry}", "size")
+      entry_line << $db.hget("entry:#{ip}:#{entry}", "entry_datetime")
       entry_list << entry_line
     end
     return entry_list
