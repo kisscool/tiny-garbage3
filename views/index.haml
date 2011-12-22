@@ -46,7 +46,7 @@
           %td
             %a{:title => ftp_name, :href => FtpServer.url(entry[0])}= ftp_name
           %td
-            %a{:title => File.basename(entry[1]), :href => url_utf8(Entry.remote_path(entry[0], entry[1]))}= entry[1]
+            %a{:title => File.basename(entry[1]), :href => url_utf8(Entry.remote_path(entry[0], entry[1]))}= to_utf8(entry[1])
           %td
             = human_date(Time.at(entry[2].to_i))
           %td{:class => "resultsSize"}
