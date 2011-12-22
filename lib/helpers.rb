@@ -13,9 +13,12 @@ module MyHelpers
 
   # convert a raw string in UTF8 in a valid URL
   def url_utf8(raw_url)
-    URI::escape Iconv.new('latin1', 'utf-8').iconv(raw_url)
+    #URI::escape Iconv.new('latin1', 'utf-8').iconv(raw_url)
+    URI::escape(raw_url)
   end
-
+  def to_utf8(raw)
+    Iconv.new('utf-8', 'latin1').iconv(raw)
+  end
   # converions of datetimes in various output format strings
   def human_date(datetime)
     datetime.strftime('%d/%m/%Y').gsub(/ 0(\d{1})/, ' \1')
@@ -41,11 +44,11 @@ module MyHelpers
 
   # prepare a string to be used as a search query
   # eg. '"un espace" .flac' --> 'un\ espace.*\.flac'
-  def format_query(query='')
-    tab = Shellwords.shellwords query
-    tab.collect! {|word| Regexp.quote(word)}
-    tab.join(".*")
-  end
+  #def format_query(query='')
+  #  tab = Shellwords.shellwords query
+  #  tab.collect! {|word| Regexp.quote(word)}
+  #  tab.join(".*")
+  #end
 
   # convert byte size in B, KB, MB.. human readable size
   # inspired from Actionpack method
