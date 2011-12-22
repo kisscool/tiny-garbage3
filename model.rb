@@ -13,6 +13,9 @@ require 'redis'
 require 'digest/md5'
 require 'shellwords'
 
+# useful for UTF-8 support
+$KCODE = "U"
+
 # Originally some of this code has been derived from Zouchaoqun's ezFtpSearch project
 # It is not the case anymore, but kuddos to his work anyway
 
