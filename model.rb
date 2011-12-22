@@ -540,7 +540,7 @@ private
       retries_count += 1
       @logger.error("on #{ip} : Ftp LIST exception: " + detail.class.to_s + " detail: " + detail.to_s)
       @logger.error("on #{ip} : Ftp LIST exception: the parent_path (if present) was : " + parent_path) if ! parent_path.nil?
-      @logger.error("on #{ip} : Retrying get ftp list #{retries_count}/#{@max_retries}")
+      @logger.error("on #{ip} : Retrying get ftp list #{retries_count}/#{@max_retries_get_list}")
       return 0 if (retries_count >= @max_retries_get_list)
       
       reconnect_retries_count = 0
@@ -573,7 +573,8 @@ private
       #puts "#{@entry_count} #{e}"
 
       begin
-        e_utf8 = ic.iconv(e)
+        #e_utf8 = ic.iconv(e)
+        e_utf8 = e
       rescue => detail
         @logger.error("on #{ip} : Iconv failed, exception: " + detail.class.to_s + " detail: " + detail.to_s + " file ignored. raw data: " + e)   
         next       
@@ -606,7 +607,8 @@ private
       end
       
       if entry.dir?
-        ftp_path = (parent_path ? parent_path : '') + '/' + ic.iconv(entry.basename)
+        #ftp_path = (parent_path ? parent_path : '') + '/' + ic.iconv(entry.basename)
+        ftp_path = (parent_path ? parent_path : '') + '/' + entry.basename
         get_list_of(ip, ftp, ftp_path, parents)
       end
     end
