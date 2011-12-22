@@ -665,7 +665,8 @@ private
         @logger.error("on #{ip} : strftime failed, exception: " + detail.class.to_s + " detail: " + detail.to_s + " raw entry : " + e )
       end
       
-      full_path = (parent_path ? parent_path : '') + '/' + ic.iconv(entry.basename)
+      #full_path = (parent_path ? parent_path : '') + '/' + ic.iconv(entry.basename)
+      full_path = (parent_path ? parent_path : '') + '/' + entry.basename
 
       # here we build the document
       # that will be inserted in
