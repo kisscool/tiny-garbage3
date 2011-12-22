@@ -145,6 +145,29 @@ module Entry
   end
 
   #
+  # gives an array of array with informations for each file of a given host :
+  # each sub-array contains the following items :
+  # path, size, entry_datetime
+  # ex : [["/animes/plip/plop", "50034", "1324476909"], ["/animes/plip/plap", "50034", "1324476909"]]
+  #
+  def self.list(ip)
+    # we check for existence
+    $db.exists("ftp:#{ip}:good_timestamp") or return -1
+
+    # then we get all the entries of the good timestamp index and compare it to the list of entry:IP:* keys
+    good_timestamp = $db.get("ftp:#{ip}:good_timestamp")
+    list = $db.smembers("ftp:#{ip}:entries:#{good_timestamp}")
+    entry_list = []
+    list.each do |entry|
+      entry_line = [entry]
+      entry_line << $db.hget("entry:#{ip}:#{entry}", size)
+      entry_line << $db.hget("entry:#{ip}:#{entry}", entry_datetime)
+      entry_list << entry_line
+    end
+    return entry_list
+  end
+
+  #
   # This method will quickly purge all the dead entries from the entry:* hierarchy of a given IP
   # based on an old good timestamp taken as reference
   # It will return the number of deleted items
@@ -191,7 +214,7 @@ module Entry
     $db.multi do
       # we destroy old entries in the entry:* hierarchy
       diff.each do |x|
-        $db.del("entry:#{ip}:#{x}")
+        $db.del(x)
       end
     end
     # and terminate last traces of any other index in the ftp:IP:entries:* hierarchy
@@ -226,10 +249,33 @@ module FtpServer
   end
 
   #
+  # rename the FTP server
+  #
+  def self.rename(ip,new_name)
+    $db.sismember("global:hosts", ip) or return -1
+    $db.set("ftp:#{ip}:name", new_name)
+  end
+  
+  #
   # gives the number of registered FTP
   #
   def self.ftp_number
     $db.scard('global:hosts')
+  end
+
+  #
+  # gives an array of informations about one server, which contains :
+  # ip, name, number of files, size, good timestamp (last scan), is_alive
+  # ex : ["192.168.0.1", "anonymous ftp", "178531", "5020887691106", "1324476909", "true"]
+  #
+  def self.ftp_info(ip)
+    ftp_line = [ip]
+    ftp_line << $db.get("ftp:#{ip}:name")
+    ftp_line << $db.get("ftp:#{ip}:total_files")
+    ftp_line << $db.get("ftp:#{ip}:total_size")
+    ftp_line << $db.get("ftp:#{ip}:good_timestamp")
+    ftp_line << $db.get("ftp:#{ip}:is_alive")
+    return ftp_line
   end
 
   #
@@ -242,13 +288,7 @@ module FtpServer
     list = $db.smembers('global:hosts')
     ftp_list = []
     list.each do |ip|
-      ftp_line = [ip]
-      ftp_line << $db.get("ftp:#{ip}:name")
-      ftp_line << $db.get("ftp:#{ip}:total_files")
-      ftp_line << $db.get("ftp:#{ip}:total_size")
-      ftp_line << $db.get("ftp:#{ip}:good_timestamp")
-      ftp_line << $db.get("ftp:#{ip}:is_alive")
-      ftp_list << ftp_line
+      ftp_list << ftp_info(ip)
     end
     return ftp_list
   end
@@ -345,6 +385,32 @@ module FtpServer
     value = value.to_s
     # then we order it
     $db.sort("global:hosts", :by => "ftp:*:#{value}", :get => "ftp:*:#{value}", :order => "desc")[0]
+  end
+
+  #
+  # remove the given FTP host and all informations about it
+  #
+  def self.remove(ip)
+    # first we remove the entry:$ip:* keys
+    keys_entries = $db.keys("entry:#{ip}:*")
+    $db.multi do
+      keys.each do |x|
+        $db.del(x)
+      end
+    end
+    # then we do the same with the ftp:$ip:* keys
+    keys_entries = $db.keys("ftp:#{ip}:*")
+    $db.multi do
+      keys.each do |x|
+        $db.del(x)
+      end
+    end
+    # and we finish by removing the host from the global
+    # list
+    $db.srem("global:hosts", ip)
+
+    # last but not least we must update the Word index cache
+    Word.purge
   end
 
   #
@@ -676,7 +742,8 @@ module Word
   #
   # This method will purge the word index from invalid entries
   # this method is especially slow as we have to check that
-  # every member of every word:* set still exists
+  # every member of every word:* set still exists in the entry:*
+  # hierarchy
   # It is to be used at the end of a global scan
   #
   def self.purge

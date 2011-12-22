@@ -53,25 +53,25 @@ end
 
 case options[:action]
 when :list
-  FtpServer.collection.find().each do |ftp|
-    puts "#{ftp['host']}\t#{ftp['name']}"
+  ftp_list = FtpServer.ftp_list
+  ftp_list.each do |ftp|
+    puts "#{ftp[0]}\t#{ftp[1]}"
   end
 when :info
-  ftp = FtpServer.collection.find_one({:host => options[:host]})
-  ["host", "name", "port","ignored_dirs", "is_alive", "last_ping", "login", "password", "total_files", "total_size", "updated_on", "force_utf8", "ftp_encoding", "ftp_type"].each do |key| 
-    puts "#{key.ljust(12)}\t#{ftp[key]}"
+  ftp = FtpServer.ftp_info(options[:host])
+  ['host', 'name', 'number of files', 'size', 'last scan', 'is alive'].each_with_index do |item, index|
+    puts "#{item.ljust(12)}\t#{ftp[index]}"
   end
 when :entries
-  ftp = FtpServer.collection.find_one({:host => options[:host]})
-  Entry.collection.find({'ftp_server_id' => ftp['_id']}).each do |entry| 
-    puts "#{Entry.full_path(entry)}\t#{entry['size']}\t#{entry['entry_datetime']}"
+  entry_list = Entry.list(options[:host])
+  entry_list.each do |entry|
+    puts "#{entry[0]}\t#{entry[1]}\t#{entry[2]}"
   end
 when :name
-  FtpServer.collection.update({:host => options[:host]}, {'$set' => {'name' => options[:name]}})
+  FtpServer.rename(options[:host], options[:name])
   puts "#{options[:host]}\t#{options[:name]}"
-when :delete 
-  Entry.collection.remove({'ftp_server_id' => FtpServer.collection.find_one({:host => options[:host]})['_id'] })
-  FtpServer.collection.remove({:host => options[:host]})
+when :delete
+  FtpServer.remove(options[:host])
   puts "Host deleted and entries purged"
 else
   puts "Unknown action"
