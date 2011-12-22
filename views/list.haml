@@ -15,7 +15,7 @@
           %td
             = ftp[2]
           %td{:class => "centertab"}
-            = number_to_human_size(ftp[3])
+            = number_to_human_size(ftp[3].to_i)
           %td{:class => "centertab"}
             = human_time(Time.at(ftp[4].to_i))
           %td{:class => "centertab"}
