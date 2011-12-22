@@ -80,7 +80,7 @@ when :delete
 when :stats
   info = $db.info
   ['used_memory_human','db0','connected_clients'].each do |item|
-    puts "#{item.ljust(12)}\t#{info[item]}"
+    puts "#{item.ljust(18)}\t#{info[item]}"
   end
 else
   puts "Unknown action"
