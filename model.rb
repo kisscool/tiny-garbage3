@@ -294,9 +294,9 @@ module FtpServer
   end
 
   #
-  # calculate the total size of the given FTP server
+  # compute the total size of the given FTP server
   #
-  def self.calculate_ftp_size(ip)
+  def self.compute_ftp_size(ip)
     # we retrieve entries
     good_timestamp = $db.get "ftp:#{ip}:good_timestamp"
     return -1 if good_timestamp.nil?
@@ -311,9 +311,9 @@ module FtpServer
   end
 
   #
-  # calculate the total number of files of the given FTP server
+  # compute the total number of files of the given FTP server
   #
-  def self.calculate_ftp_files(ip)
+  def self.compute_ftp_files(ip)
     # we retrieve entries
     good_timestamp = $db.get "ftp:#{ip}:good_timestamp"
     return -1 if good_timestamp.nil?
@@ -332,8 +332,8 @@ module FtpServer
   # this method must be used as a batch after a global scan
   #
   def self.refresh_cache(ip)
-    $db.set("ftp:#{ip}:total_size", FtpServer.calculate_ftp_size(ip))
-    $db.set("ftp:#{ip}:total_files", FtpServer.calculate_ftp_files(ip))
+    $db.set("ftp:#{ip}:total_size", FtpServer.compute_ftp_size(ip))
+    $db.set("ftp:#{ip}:total_files", FtpServer.compute_ftp_files(ip))
   end
 
   #
