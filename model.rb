@@ -585,6 +585,21 @@ module FtpServer
     process_time = Time.now - start_time
     @logger.info("on #{ip} : Refresh of cache update procedure took " + process_time.to_s + " seconds.")
 
+    # This is a very slow operation (several minutes) and we should wait for all FTP hosts to be scanned before
+    # doing it, but if some hosts are slower than others then we might end with a dirty word index for several
+    # hours. 
+    # We decide to do it after every scan, so that the users of the web UI will have clean searche results in
+    # spite of slow FTP hosts.
+    start_time = Time.now
+    @logger.info("on #{ip} : Purge of word index procedure")
+    begin
+      Word.purge
+    rescue => detail
+      @logger.error("on #{ip} : Error during purge of word index procedure " + detail.class.to_s + " detail: " + detail.to_s)
+      exit
+    end
+    process_time = Time.now - start_time
+    @logger.info("on #{ip} : Purge of word index procedure took " + process_time.to_s + " seconds.")
 
     # not the smartiest solution, but closing the log device can be a real issue in a multi-threaded environment
     @logger.info("on #{ip} : scan finished.")
