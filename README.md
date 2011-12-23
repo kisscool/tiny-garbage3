@@ -7,7 +7,7 @@ Nothing else, nothing more.
 Relationship with the original Tiny-Garbage project(s)
 ------------------------------------------------------
 
-Tiny-Garbage3 is designed to be the next version of the originals [`Tiny-Garbage2`](http://github.com/kisscool/tiny-garbage2) and [`Tiny-Garbage`](http://github.com/kisscool/tiny-garbage). Those are kepts as different projects, because each major version is a total re-design with different dependencies and goals, that may not be of interest for everybody.
+Tiny-Garbage3 is designed to be the next version of the originals [`Tiny-Garbage2`](http://github.com/kisscool/tiny-garbage2) and [`Tiny-Garbage`](http://github.com/kisscool/tiny-garbage) projects. Those are kepts as different projects, because each major version is a total re-design with different dependencies and goals, that may not be of interest for everybody.
 
 * Tiny-Garbage is designed around a relational database (sqlite, mysql...) and is well suited for indexing little networks
 * Tiny-Garbage2 is designed around a non-relational database (MongoDB) and is able to scale to the indexing of several hundred of thousands of files and directories without major performances penalties
@@ -62,8 +62,8 @@ If you want to deploy it in production, you will want to check Unicorn, Thin or 
 
 ### Memory requirements
 
-Redis is a in-memory datastore with persistence on disk. If you don't have enough memory for your needs, you can enable the VM options to use your disk. Do it at your own risks as the Redis documentation warns that the used of this feature is discouraged.
-As an indication, for storing around 600 000 entries (each file or directory is an individual entry in the database) on a 64bit system you will need around 1.4GB of memory.
+Redis is a in-memory datastore with persistence on disk. If you don't have enough memory for your needs, you can enable the VM options to use your disk. Do it at your own risk as the Redis documentation warns that the use of this feature is discouraged.
+The storage of around 600 000 entries (each file or directory is an individual entry in the database) on a 64bit system you will need around 1.4GB of memory.
 
 Screenshots
 -----------
