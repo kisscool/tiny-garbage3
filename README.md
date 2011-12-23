@@ -11,7 +11,7 @@ Tiny-Garbage3 is designed to be the next version of the originals [`Tiny-Garbage
 
 * Tiny-Garbage is designed around a relational database (sqlite, mysql...) and is well suited for indexing little networks
 * Tiny-Garbage2 is designed around a non-relational database (MongoDB) and is able to scale to the indexing of several hundred of thousands of files and directories without major performances penalties
-* Tiny-Garbage3 is designed around a non-relational in-RAM database (Redis) and is able to index easily several millions of files and directories.
+* Tiny-Garbage3 is designed around the non-relational in-memory database [`Redis`](http://redis.io) and is able to index easily several millions of files and directories.
 
 Additionaly, Tiny-Garbage3 provides the following changes :
 
