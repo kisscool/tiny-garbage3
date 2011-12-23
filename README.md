@@ -24,6 +24,24 @@ Additionaly, Tiny-Garbage3 provides the following changes :
 
 For this version, we have been heavily inspired by some axioms of the UNIX philosphy : "When in doubt, use bruteforce" and "smart data structures, simple algorithms".
 
+Quick start
+-----------
+
+This is how to bootstrap Tiny-Garbage3 if you are in a real hurry (sh compatible syntax as root, quick and dirty configuration) :
+
+	pkg_add -r ruby redis ruby18-gems ruby18-iconv git
+	echo 'redis_enable="YES"' >> /etc/rc.conf
+	/usr/local/etc/rc.d/redis start
+	gem install bundler
+	export tinyroot=/usr/local
+	git clone http://github.com/kisscool/tiny-garbage3.git $tinyroot/tiny-garbage3
+	cd $tinyroot/tiny-garbage3
+	bundle install --path vendor
+	echo "30 * * * * root $tinyroot/tiny-garbage3/scripts/crawler.rb ping" >> /etc/crontab
+	echo "0 2 * * * root $tinyroot/tiny-garbage3/scripts/crawler.rb index" >> /etc/crontab
+
+Read below for explanations.
+
 Dependencies
 ------------
 
@@ -57,7 +75,7 @@ Configure your crontab to launch periodically the following commands :
 
 ### The Web UI part
 
-For a first try you can just launch "rackup config.ru" in order to test the web UI with the pure ruby Webrick server.
+For a first try you can just launch "rackup config.ru" (or "bundle exec rackup" if you are using Bundler) in order to test the web UI with the pure ruby Webrick server.
 If you want to deploy it in production, you will want to check Unicorn, Thin or Phusion Passenger documentations for more solids options.
 
 ### Memory requirements
