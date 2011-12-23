@@ -1,29 +1,37 @@
-Tiny-Garbage2
+Tiny-Garbage3
 =============
 
-Just a little FTP crawler, with a little Sinatra based search interface in order to browse the FTP index.
+Just a little FTP crawler, with a Sinatra based search interface in order to browse the FTP index.
 Nothing else, nothing more.
 
-Relationship with the original Tiny-Garbage project
----------------------------------------------------
+Relationship with the original Tiny-Garbage project(s)
+------------------------------------------------------
 
-Tiny-Garbage2 was designed to be the next version of the original [`Tiny-Garbage`](http://github.com/kisscool/tiny-garbage)
-The original goal was to re-implement the backend in MongoDB in order to help it scale past several hundred of thousands of indexed files. Unfortunately we quickly discovered it would definitively break our compatibility with more traditional RDBMS.
+Tiny-Garbage3 is designed to be the next version of the originals [`Tiny-Garbage2`](http://github.com/kisscool/tiny-garbage2) and [`Tiny-Garbage`](http://github.com/kisscool/tiny-garbage). Those are kepts as different projects, because each major version is a total re-design with different dependencies and goals, that may not be of interest for everybody.
 
-The original Tiny-Garbage is already a complete and stable piece of software ready for production, besides everybody does not need or want to jump in the NoSQL bandwagon. So we decided to let the original project continue to live without changing its relational philosophy and to build the NoSQL version as a separate project.
+* Tiny-Garbage is designed around a relational database (sqlite, mysql...) and is well suited for indexing little networks
+* Tiny-Garbage2 is designed around a non-relational database (MongoDB) and is able to scale to the indexing of several hundred of thousands of files and directories without major performances penalties
+* Tiny-Garbage3 is designed around a non-relational in-RAM database (Redis) and is able to index easily several millions of files and directories.
 
-* If you want a pretty solid software based on SQLite or MySQL, with a beautiful and clean object oriented backend : take tiny-garbage.
-* If you want an amazingly fast and scalable software based on MongoDB, albeit less beautiful and more experimental : take tiny-garbage2.
+Additionaly, Tiny-Garbage3 provides the following changes :
+
+* Lot of bugfixes
+* A better strategy for index versioning
+* Less dependencies
+* Less administration overhead
+* A more robust infrastructure
+* A blazingly fast new inverted index search system
+
+For this version, we have been heavily inspired by some axioms of the UNIX philosphy : "When in doubt, use bruteforce" and "smart data structures, simple algorithms".
 
 Dependencies
 ------------
 
-This software assumes you have already setup a Mongodb database and that ruby and iconv are available.
+This software assumes you have already setup a Redis database (the default configuration works out of the box) and that ruby and iconv are available.
 
 Required gems are :
 
-* mongo
-* bson_ext
+* redis
 * sinatra
 * haml
 * sass
@@ -52,10 +60,15 @@ Configure your crontab to launch periodically the following commands :
 For a first try you can just launch "rackup config.ru" in order to test the web UI with the pure ruby Webrick server.
 If you want to deploy it in production, you will want to check Unicorn, Thin or Phusion Passenger documentations for more solids options.
 
+### Memory requirements
+
+Redis is a in-memory datastore with persistence on disk. If you don't have enough memory for your needs, you can enable the VM options to use your disk. Do it at your own risks as the Redis documentation warns that the used of this feature is discouraged.
+As an indication, for storing around 600 000 entries (each file or directory is an individual entry in the database) on a 64bit system you will need around 1.4GB of memory.
+
 Screenshots
 -----------
 
-Here are some screenshots from a Tiny-Garbage2 V1 deployment transmitted to us by some of our friendly users.
+Here are some screenshots from a Tiny-Garbage3 deployment transmitted to us by some of our friendly users.
 
 ![Search](https://github.com/downloads/kisscool/tiny-garbage2/garbage_1.png)
 ![Listing](https://github.com/downloads/kisscool/tiny-garbage2/garbage_2.png)
