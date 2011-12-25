@@ -37,6 +37,8 @@ This is how to bootstrap Tiny-Garbage3 if you are in a real hurry (sh compatible
 	git clone http://github.com/kisscool/tiny-garbage3.git $tinyroot/tiny-garbage3
 	cd $tinyroot/tiny-garbage3
 	bundle install --path vendor
+	cp config.rb.sample config.rb
+	echo "You must edit config.rb in order to configure Tiny-Garbage3"
 	echo "30 * * * * root $tinyroot/tiny-garbage3/scripts/crawler.rb ping" >> /etc/crontab
 	echo "0 2 * * * root $tinyroot/tiny-garbage3/scripts/crawler.rb index" >> /etc/crontab
 
