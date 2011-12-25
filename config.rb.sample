@@ -11,7 +11,9 @@
 
 # Here you can specify the format of the networks Tiny-Garbage will scan
 # in the following format : '10.2.0.* 10.3.0.1'
-NETWORKS = '10.2.0.*'
+# by default if you do not uncomment the following line, then nothing
+# will be scanned.
+#NETWORKS = '10.2.0.*'
 
 
 # === Database to use ===
