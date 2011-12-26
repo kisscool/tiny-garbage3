@@ -82,7 +82,7 @@ If you want to deploy it in production, you will need to check Unicorn, Thin or 
 
 ### Memory requirements
 
-Redis is a in-memory datastore with persistence on disk. If you don't have enough memory for your needs, you can enable the VM options to use your disk. Do it at your own risk as the Redis documentation warns that the use of this feature is discouraged.
+Redis is a in-memory datastore with persistence on disk. If you don't have enough memory for your needs, you can enable the VM options to use your disk instead. Do it at your own risk as the Redis documentation warns that the use of this feature is discouraged.
 You will need around 1.4GB of memory for the storage of 600 000 entries (each file or directory is an individual entry in the database) on a 64bit system.
 
 Screenshots
