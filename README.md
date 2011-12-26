@@ -78,7 +78,7 @@ Configure your crontab to launch periodically the following commands :
 ### The Web UI part
 
 For a first try you can just launch "rackup config.ru" (or "bundle exec rackup" if you are using Bundler) in order to test the web UI with the pure ruby Webrick server.
-If you want to deploy it in production, you will want to check Unicorn, Thin or Phusion Passenger documentations for more solids options.
+If you want to deploy it in production, you will need to check Unicorn, Thin or Phusion Passenger documentations for more solids options.
 
 ### Memory requirements
 
