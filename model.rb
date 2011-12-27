@@ -452,7 +452,7 @@ module FtpServer
       # then we update its status
       $db.multi do
         $db.set("ftp:#{ip}:is_alive", is_alive)
-        $db.set("ftp:#{ip}:last_ping", Time.now)
+        $db.set("ftp:#{ip}:last_ping", Time.now.to_i.to_s)
       end
     else
      # if the server doesn't exist yet
