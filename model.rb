@@ -823,7 +823,14 @@ module Word
     if ! $db.exists(tmpkey)
       # we take the time to actually execute the query
       # only if it is not already in cache
-      search_terms = Shellwords.shellwords(query)
+      begin
+        retry_number = 0
+        search_terms = Shellwords.shellwords(query)
+      rescue
+        query += '"'
+        retry_number += 1
+        retry if retry_number <= 1
+      end
       search_terms.collect! {|x| 'word:' + x.downcase}
       $db.multi do
         $db.sinterstore(tmpkey, *search_terms)
