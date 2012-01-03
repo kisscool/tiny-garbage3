@@ -58,7 +58,11 @@ module MyHelpers
     return "0 B" if number == 0
     max_exp  = STORAGE_UNITS.size - 1
     number   = Float(number)
-    exponent = (Math.log(number) / Math.log(1024)).to_i # Convert to base 1024
+    begin
+      exponent = (Math.log(number) / Math.log(1024)).to_i # Convert to base 1024
+    rescue
+      exponent = 0
+    end
     exponent = max_exp if exponent > max_exp # we need this to avoid overflow for the highest unit
     number  /= 1024 ** exponent
 
