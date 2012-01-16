@@ -429,6 +429,8 @@ module FtpServer
 
   #
   # purge old entries in the ftp:IP:* hierarchy the slow but safer way
+  # it's a best version to ensure a clean database even in case of interrupted
+  # previous jobs
   #
   def self.purge_slow(ip)
     good_timestamp = $db.get("ftp:#{ip}:good_timestamp")

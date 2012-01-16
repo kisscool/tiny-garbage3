@@ -50,10 +50,6 @@ def index
 
   # we close the threadpool
   pool.shutdown
-  # We purge old entries in the Word index (revere index for search) database
-  # This particulare cleaning operation must only be done at the very end of
-  # the scan procedure, because of its slowness
-  Word.purge
 end
 
 
