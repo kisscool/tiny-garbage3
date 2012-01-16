@@ -218,8 +218,8 @@ module Entry
       end
     end
     # and terminate last traces of any other index in the ftp:IP:entries:* hierarchy
-    FtpServer.purge(ip)
-    return diff.length    
+    FtpServer.purge_slow(ip)
+    return diff.length
   end
 end
 
