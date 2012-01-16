@@ -428,6 +428,20 @@ module FtpServer
   end
 
   #
+  # purge old entries in the ftp:IP:* hierarchy the slow but safer way
+  #
+  def self.purge_slow(ip)
+    good_timestamp = $db.get("ftp:#{ip}:good_timestamp")
+    outdated_timestamps = $db.keys("ftp:#{ip}:entries:*").collect {|x| x.scan(/ftp:.*:(.*)/)[0]}.flatten - [good_timestamp]
+    $db.multi do
+      outdated_timestamps.each do |x|
+        $db.del("ftp:#{ip}:entries:#{x}")
+        $db.srem("ftp:#{ip}:list_timestamp", x)
+      end
+    end
+  end
+
+  #
   # gives the list of FTP servers hosts depending if they are online or offline
   #
   def self.list_by_status(state)
