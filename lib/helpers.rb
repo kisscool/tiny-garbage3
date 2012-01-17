@@ -13,13 +13,12 @@ module MyHelpers
 
   # convert a raw string in UTF8 in a valid URL
   def url_utf8(raw_url)
-    #URI::escape Iconv.new('latin1', 'utf-8').iconv(raw_url)
     URI::escape(raw_url)
   end
   def to_utf8(raw)
     Iconv.new('utf-8', 'latin1').iconv(raw)
   end
-  # converions of datetimes in various output format strings
+  # conversions of datetimes in various output format strings
   def human_date(datetime)
     datetime.strftime('%d/%m/%Y').gsub(/ 0(\d{1})/, ' \1')
   end
