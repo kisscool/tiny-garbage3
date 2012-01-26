@@ -41,14 +41,6 @@ module MyHelpers
     haml page, {:layout => false}, locals
   end
 
-  # prepare a string to be used as a search query
-  # eg. '"un espace" .flac' --> 'un\ espace.*\.flac'
-  #def format_query(query='')
-  #  tab = Shellwords.shellwords query
-  #  tab.collect! {|word| Regexp.quote(word)}
-  #  tab.join(".*")
-  #end
-
   # convert byte size in B, KB, MB.. human readable size
   # inspired from Actionpack method
   STORAGE_UNITS = ['B', 'KB', 'MB', 'GB', 'TB']
