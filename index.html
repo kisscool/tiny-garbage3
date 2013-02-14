@@ -1,0 +1,139 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="chrome=1">
+    <title>Tiny-garbage3 by kisscool</title>
+    <link rel="stylesheet" href="stylesheets/styles.css">
+    <link rel="stylesheet" href="stylesheets/pygment_trac.css">
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/1.7.1/jquery.min.js"></script>
+    <script src="javascripts/respond.js"></script>
+    <!--[if lt IE 9]>
+      <script src="//html5shiv.googlecode.com/svn/trunk/html5.js"></script>
+    <![endif]-->
+    <!--[if lt IE 8]>
+    <link rel="stylesheet" href="stylesheets/ie.css">
+    <![endif]-->
+    <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
+
+  </head>
+  <body>
+      <div id="header">
+        <nav>
+          <li class="fork"><a href="https://github.com/kisscool/tiny-garbage3">View On GitHub</a></li>
+          <li class="downloads"><a href="https://github.com/kisscool/tiny-garbage3/zipball/master">ZIP</a></li>
+          <li class="downloads"><a href="https://github.com/kisscool/tiny-garbage3/tarball/master">TAR</a></li>
+          <li class="title">DOWNLOADS</li>
+        </nav>
+      </div><!-- end header -->
+
+    <div class="wrapper">
+
+      <section>
+        <div id="title">
+          <h1>Tiny-garbage3</h1>
+          <p>A tiny FTP crawler and indexer with a web UI, based on Redis and designed for performance</p>
+          <hr>
+          <span class="credits left">Project maintained by <a href="https://github.com/kisscool">kisscool</a></span>
+          <span class="credits right">Hosted on GitHub Pages &mdash; Theme by <a href="http://twitter.com/#!/michigangraham">mattgraham</a></span>
+        </div>
+
+        <h1>Tiny-Garbage3</h1>
+
+<p>Just a little FTP crawler, with a Sinatra based search interface in order to browse the FTP index.
+Nothing else, nothing more.</p>
+
+<h2>Relationship with the original Tiny-Garbage project(s)</h2>
+
+<p>Tiny-Garbage3 is designed to be the next version of the originals <a href="http://github.com/kisscool/tiny-garbage2"><code>Tiny-Garbage2</code></a> and <a href="http://github.com/kisscool/tiny-garbage"><code>Tiny-Garbage</code></a> projects. Those are kepts as different projects, because each major version is a total re-design with different dependencies and goals, that may not be of interest for everybody.</p>
+
+<ul>
+<li>Tiny-Garbage is designed around a relational database (sqlite, mysql...) and is well suited for indexing little networks</li>
+<li>Tiny-Garbage2 is designed around a non-relational database (MongoDB) and is able to scale to the indexing of several hundred of thousands of files and directories without major performances penalties</li>
+<li>Tiny-Garbage3 is designed around the non-relational in-memory database <a href="http://redis.io"><code>Redis</code></a> and is able to index easily several millions of files and directories.</li>
+</ul><p>Additionaly, Tiny-Garbage3 provides the following changes :</p>
+
+<ul>
+<li>Lot of bugfixes</li>
+<li>A better strategy for index versioning</li>
+<li>Less dependencies</li>
+<li>Less administration overhead</li>
+<li>A more robust infrastructure</li>
+<li>A blazingly fast new inverted index search system</li>
+</ul><p>For this version, we have been heavily inspired by some axioms of the UNIX philosphy : "When in doubt, use bruteforce" and "smart data structures, simple algorithms".</p>
+
+<h2>Quick start</h2>
+
+<p>This is how to bootstrap Tiny-Garbage3 if you are in a real hurry (sh compatible syntax as root, quick and dirty configuration) :</p>
+
+<pre><code>pkg_add -r ruby redis ruby18-gems ruby18-iconv git
+echo 'redis_enable="YES"' &gt;&gt; /etc/rc.conf
+/usr/local/etc/rc.d/redis start
+gem install bundler
+export tinyroot=/usr/local
+git clone http://github.com/kisscool/tiny-garbage3.git $tinyroot/tiny-garbage3
+cd $tinyroot/tiny-garbage3
+bundle install --path vendor
+cp config.rb.sample config.rb
+echo "You must edit config.rb in order to configure Tiny-Garbage3"
+echo "30 * * * * root $tinyroot/tiny-garbage3/scripts/crawler.rb ping" &gt;&gt; /etc/crontab
+echo "0 2 * * * root $tinyroot/tiny-garbage3/scripts/crawler.rb index" &gt;&gt; /etc/crontab
+</code></pre>
+
+<p>Read below for explanations.</p>
+
+<h2>Dependencies</h2>
+
+<p>This software assumes you have already setup a Redis database (the default configuration works out of the box) and that ruby and iconv are available.</p>
+
+<p>Required gems are :</p>
+
+<ul>
+<li>redis</li>
+<li>sinatra</li>
+<li>haml</li>
+<li>sass</li>
+<li>net-ftp-list</li>
+<li>Rack</li>
+</ul><p>If you have Bundler installed on your system, you can track down all those dependencies by launching the following command from inside the project directory :</p>
+
+<pre><code>$ bundle install --path vendor
+</code></pre>
+
+<h2>Install</h2>
+
+<h3>The crawler part</h3>
+
+<p>Do a clone of the project git repository, install the missing dependencies then create the configuration file by copying config.rb.sample as config.rb and edit it to suit your taste.</p>
+
+<p>Configure your crontab to launch periodically the following commands :</p>
+
+<ul>
+<li>"$path_to_project/scripts/crawler.rb ping" (with a recommenced frequency of every 10 minutes)</li>
+<li>"$path_to_project/scripts/crawler.rb index" (with a recommended frequency of once a day)</li>
+</ul><h3>The Web UI part</h3>
+
+<p>For a first try you can just launch "rackup config.ru" (or "bundle exec rackup" if you are using Bundler) in order to test the web UI with the pure ruby Webrick server.
+If you want to deploy it in production, you will need to check Unicorn, Thin or Phusion Passenger documentations for more solids options.</p>
+
+<h3>Memory requirements</h3>
+
+<p>Redis is a in-memory datastore with persistence on disk. If you don't have enough memory for your needs, you can enable the VM options to use your disk instead. Do it at your own risk as the Redis documentation warns that the use of this feature is discouraged.
+You will need around 1.4GB of memory for the storage of 600 000 entries (each file or directory is an individual entry in the database) on a 64bit system.</p>
+
+<h2>Screenshots</h2>
+
+<p>Here are some screenshots from a Tiny-Garbage3 deployment transmitted to us by some of our friendly users.</p>
+
+<p><img src="https://github.com/downloads/kisscool/tiny-garbage2/garbage_1.png" alt="Search"><img src="https://github.com/downloads/kisscool/tiny-garbage2/garbage_2.png" alt="Listing"></p>
+
+<h2>Thanks</h2>
+
+<p>Thanks to Loic Gomez for the first Garbage Collector, which was so useful back in the days, and thanks to Zouchaoqun's <a href="http://github.com/zouchaoqun/ezftpsearch"><code>ezFtpSearch</code></a> whose model bootstrapped our early work.</p>
+      </section>
+
+    </div>
+    <!--[if !IE]><script>fixScale(document);</script><![endif]-->
+    
+  </body>
+</html>
