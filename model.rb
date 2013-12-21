@@ -703,7 +703,7 @@ private
       # that will be inserted in
       # the datastore
       $db.multi do
-        $db.hmset("entry:#{ip}:#{full_path}", "directory", entry.dir?, "name", entry.basename, "size", entry.filesize, "entry_datetime", entry.mtime.to_i.to_s)
+        $db.hmset("entry:#{ip}:#{full_path}", "directory", entry.dir?, "name", entry.basename, "size", entry.filesize, "entry_datetime", file_datetime.to_i.to_s)
         $db.sadd("ftp:#{ip}:entries:#{@new_good_timestamp}", full_path)
       end
       
@@ -889,5 +889,11 @@ module Word
 
     # finally we return both informations
     return [ page_count, results ]
+  end
+end
+
+class String
+  def force_encoding(enc)
+    self
   end
 end
