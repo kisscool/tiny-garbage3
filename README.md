@@ -29,7 +29,7 @@ Quick start
 
 This is how to bootstrap Tiny-Garbage3 if you are in a real hurry (sh compatible syntax as root, quick and dirty configuration) :
 
-	pkg_add -r ruby redis ruby18-gems ruby18-iconv git
+	pkg install ruby redis ruby19-gems ruby19-iconv git
 	echo 'redis_enable="YES"' >> /etc/rc.conf
 	/usr/local/etc/rc.d/redis start
 	gem install bundler
