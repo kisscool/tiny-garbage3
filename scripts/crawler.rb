@@ -5,7 +5,7 @@
 # requires
 require 'net/ftp'
 require 'logger'
-require 'ping'
+require File.join(File.dirname(__FILE__), '../lib/ping.rb')
 # loading the db model
 require File.join(File.dirname(__FILE__), '../model.rb')
 # loading our threadpool library
